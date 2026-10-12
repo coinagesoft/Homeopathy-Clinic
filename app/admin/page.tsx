@@ -8,6 +8,132 @@ import RevenueChart from '@/components/admin/RevenueChart';
 import PatientHistoryModal from '@/components/admin/PatientHistoryModal';
 import DoctorAvailabilityManager from '@/components/admin/DoctorAvailabilityManager';
 
+// Standardized Feather/Lucide SVG icon system with uniform 2px stroke and currentColor
+function IconOverview({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
+    </svg>
+  );
+}
+
+function IconCalendar({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function IconUsers({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function IconPayments({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+      <line x1="1" y1="10" x2="23" y2="10" />
+    </svg>
+  );
+}
+
+function IconAvailability({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function IconWallet({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 7h-7" />
+      <path d="M14 17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3" />
+      <rect x="16" y="11" width="6" height="8" rx="2" />
+    </svg>
+  );
+}
+
+function IconClock({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function IconRefresh() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="23 4 23 10 17 10" />
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+    </svg>
+  );
+}
+
+function IconPlus() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+function IconExternalLink() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  );
+}
+
+function IconLogOut() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  );
+}
+
+function IconCross() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+function IconArrowRight() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="5" y1="12" x2="19" y2="12" />
+      <polyline points="12 5 19 12 12 19" />
+    </svg>
+  );
+}
+
 export default function AdminPage() {
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -324,32 +450,37 @@ export default function AdminPage() {
 
   return (
     <div className="admin-portal-wrapper">
-      {/* Admin Top Header Bar */}
+      {/* Admin Top Header Bar - Centered and aligned via container admin-topbar-inner */}
       <header className="admin-topbar">
-        <div className="admin-topbar-left">
-          <Link href="/" className="admin-brand-link" title="Visit Public Website">
-            <strong>Dr. Aarav Mehta</strong>
-            <span>Admin Portal</span>
-          </Link>
-          <span className="admin-badge-doctor">BHMS, MD (Homeopathy) &bull; Pune</span>
-        </div>
+        <div className="admin-topbar-inner">
+          <div className="admin-topbar-left">
+            <Link href="/" className="admin-brand-link" title="Visit Public Website">
+              <strong>Dr. Aarav Mehta</strong>
+              <span>Admin Portal</span>
+            </Link>
+            <span className="admin-badge-doctor">BHMS, MD (Homeopathy) &bull; Pune</span>
+          </div>
 
-        <div className="admin-topbar-right">
-          <button
-            type="button"
-            className="btn-quick-leave"
-            onClick={() => setActiveTab('availability')}
-          >
-            + Set Doctor Leave / Blackout
-          </button>
+          <div className="admin-topbar-right">
+            <button
+              type="button"
+              className="btn-quick-leave"
+              onClick={() => setActiveTab('availability')}
+            >
+              <IconPlus />
+              <span>Set Doctor Leave / Blackout</span>
+            </button>
 
-          <Link href="/appointment" className="btn-portal-view" target="_blank">
-            Open Booking Portal &#x2197;
-          </Link>
+            <Link href="/appointment" className="btn-portal-view" target="_blank">
+              <span>Open Booking Portal</span>
+              <IconExternalLink />
+            </Link>
 
-          <button type="button" className="btn-logout" onClick={handleLogout}>
-            Logout
-          </button>
+            <button type="button" className="btn-logout" onClick={handleLogout}>
+              <IconLogOut />
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -361,7 +492,7 @@ export default function AdminPage() {
             className={`admin-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
             onClick={() => setActiveTab('overview')}
           >
-            <span className="tab-icon">📈</span>
+            <IconOverview />
             <span>Overview &amp; Analytics</span>
           </button>
 
@@ -370,7 +501,7 @@ export default function AdminPage() {
             className={`admin-tab-btn ${activeTab === 'appointments' ? 'active' : ''}`}
             onClick={() => setActiveTab('appointments')}
           >
-            <span className="tab-icon">📅</span>
+            <IconCalendar />
             <span>Appointments &amp; Bookings</span>
             <span className="tab-counter">{stats.totalCount}</span>
           </button>
@@ -380,7 +511,7 @@ export default function AdminPage() {
             className={`admin-tab-btn ${activeTab === 'patients' ? 'active' : ''}`}
             onClick={() => setActiveTab('patients')}
           >
-            <span className="tab-icon">👥</span>
+            <IconUsers />
             <span>Patients Directory</span>
             <span className="tab-counter">{patientDirectory.length}</span>
           </button>
@@ -390,7 +521,7 @@ export default function AdminPage() {
             className={`admin-tab-btn ${activeTab === 'payments' ? 'active' : ''}`}
             onClick={() => setActiveTab('payments')}
           >
-            <span className="tab-icon">💳</span>
+            <IconPayments />
             <span>Payments &amp; Revenue</span>
           </button>
 
@@ -399,7 +530,7 @@ export default function AdminPage() {
             className={`admin-tab-btn ${activeTab === 'availability' ? 'active' : ''}`}
             onClick={() => setActiveTab('availability')}
           >
-            <span className="tab-icon">👨‍⚕️</span>
+            <IconAvailability />
             <span>Doctor Availability</span>
             <span className="tab-counter counter-amber">{overrides.length}</span>
           </button>
@@ -413,8 +544,10 @@ export default function AdminPage() {
           <div className="tab-pane-fade">
             {/* 4 Top KPI Metric Cards */}
             <div className="admin-kpi-grid">
-              <div className="kpi-card card-revenue">
-                <div className="kpi-icon-box">₹</div>
+              <div className="kpi-card">
+                <div className="kpi-icon-box">
+                  <IconWallet size={22} />
+                </div>
                 <div className="kpi-info">
                   <span className="kpi-label">Total Revenue</span>
                   <strong className="kpi-value">₹{stats.totalRevenue.toLocaleString('en-IN')}</strong>
@@ -424,8 +557,10 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="kpi-card card-appointments">
-                <div className="kpi-icon-box">📅</div>
+              <div className="kpi-card">
+                <div className="kpi-icon-box">
+                  <IconCalendar size={22} />
+                </div>
                 <div className="kpi-info">
                   <span className="kpi-label">Total Appointments</span>
                   <strong className="kpi-value">{stats.totalCount}</strong>
@@ -435,8 +570,10 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="kpi-card card-patients">
-                <div className="kpi-icon-box">👥</div>
+              <div className="kpi-card">
+                <div className="kpi-icon-box">
+                  <IconUsers size={22} />
+                </div>
                 <div className="kpi-info">
                   <span className="kpi-label">Registered Patients</span>
                   <strong className="kpi-value">{patientDirectory.length}</strong>
@@ -444,8 +581,10 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="kpi-card card-pending">
-                <div className="kpi-icon-box">⏳</div>
+              <div className="kpi-card">
+                <div className="kpi-icon-box">
+                  <IconClock size={22} />
+                </div>
                 <div className="kpi-info">
                   <span className="kpi-label">Pending Receivables</span>
                   <strong className="kpi-value">₹{stats.pendingRevenue.toLocaleString('en-IN')}</strong>
@@ -577,7 +716,8 @@ export default function AdminPage() {
               </div>
 
               <button type="button" onClick={loadAppointments} className="btn-reload" title="Refresh">
-                &#x21bb; Refresh
+                <IconRefresh />
+                <span>Refresh</span>
               </button>
             </div>
 
@@ -597,7 +737,6 @@ export default function AdminPage() {
                         <th>Date &amp; Time</th>
                         <th>Patient Details</th>
                         <th>Health Concern</th>
-                        <th>Google Meet</th>
                         <th>Status</th>
                         <th>Payment</th>
                         <th>Actions</th>
@@ -646,20 +785,6 @@ export default function AdminPage() {
                               <p className="cell-patient-note" title={appt.message}>
                                 &ldquo;{appt.message}&rdquo;
                               </p>
-                            )}
-                          </td>
-                          <td>
-                            {appt.meetLink ? (
-                              <a
-                                href={appt.meetLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="meet-pill-link"
-                              >
-                                Join Meet &#x2197;
-                              </a>
-                            ) : (
-                              <span className="text-muted">—</span>
                             )}
                           </td>
                           <td>
@@ -728,7 +853,7 @@ export default function AdminPage() {
                                 title="Delete Appointment"
                                 onClick={() => handleDeleteAppointment(appt.id, appt.fullName)}
                               >
-                                &times;
+                                <IconCross />
                               </button>
                             </div>
                           </td>
@@ -803,7 +928,8 @@ export default function AdminPage() {
                         className="btn-view-history"
                         onClick={() => setSelectedPatient(patient)}
                       >
-                        View Full History &amp; Rx Notes &#x2192;
+                        <span>View Full History &amp; Rx Notes</span>
+                        <IconArrowRight />
                       </button>
                     </div>
                   </div>
@@ -818,32 +944,52 @@ export default function AdminPage() {
           <div className="tab-pane-fade">
             <div className="admin-kpi-grid">
               <div className="kpi-card">
-                <span className="kpi-label">Today&apos;s Collection</span>
-                <strong className="kpi-value">
-                  ₹{revenueData?.summary.todayRevenue.toLocaleString('en-IN') || 0}
-                </strong>
-                <span className="kpi-meta">Cleared receipts today</span>
+                <div className="kpi-icon-box">
+                  <IconWallet size={22} />
+                </div>
+                <div className="kpi-info">
+                  <span className="kpi-label">Today&apos;s Collection</span>
+                  <strong className="kpi-value">
+                    ₹{revenueData?.summary.todayRevenue.toLocaleString('en-IN') || 0}
+                  </strong>
+                  <span className="kpi-meta">Cleared receipts today</span>
+                </div>
               </div>
               <div className="kpi-card">
-                <span className="kpi-label">This Month&apos;s Collection</span>
-                <strong className="kpi-value">
-                  ₹{revenueData?.summary.thisMonthRevenue.toLocaleString('en-IN') || 0}
-                </strong>
-                <span className="kpi-meta">October 2026 total</span>
+                <div className="kpi-icon-box">
+                  <IconCalendar size={22} />
+                </div>
+                <div className="kpi-info">
+                  <span className="kpi-label">This Month&apos;s Collection</span>
+                  <strong className="kpi-value">
+                    ₹{revenueData?.summary.thisMonthRevenue.toLocaleString('en-IN') || 0}
+                  </strong>
+                  <span className="kpi-meta">Current month total</span>
+                </div>
               </div>
               <div className="kpi-card">
-                <span className="kpi-label">Annual Revenue</span>
-                <strong className="kpi-value">
-                  ₹{revenueData?.summary.thisYearRevenue.toLocaleString('en-IN') || 0}
-                </strong>
-                <span className="kpi-meta">Year 2026</span>
+                <div className="kpi-icon-box">
+                  <IconOverview size={22} />
+                </div>
+                <div className="kpi-info">
+                  <span className="kpi-label">Annual Revenue</span>
+                  <strong className="kpi-value">
+                    ₹{revenueData?.summary.thisYearRevenue.toLocaleString('en-IN') || 0}
+                  </strong>
+                  <span className="kpi-meta">Year {new Date().getFullYear()}</span>
+                </div>
               </div>
               <div className="kpi-card">
-                <span className="kpi-label">Pending Receivables</span>
-                <strong className="kpi-value">
-                  ₹{revenueData?.summary.pendingReceivables.toLocaleString('en-IN') || 0}
-                </strong>
-                <span className="kpi-meta">Awaiting payment settlement</span>
+                <div className="kpi-icon-box">
+                  <IconClock size={22} />
+                </div>
+                <div className="kpi-info">
+                  <span className="kpi-label">Pending Receivables</span>
+                  <strong className="kpi-value">
+                    ₹{revenueData?.summary.pendingReceivables.toLocaleString('en-IN') || 0}
+                  </strong>
+                  <span className="kpi-meta">Awaiting payment settlement</span>
+                </div>
               </div>
             </div>
 
@@ -867,7 +1013,6 @@ export default function AdminPage() {
                       <th>Method</th>
                       <th>Payment Status</th>
                       <th>Paid At</th>
-                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -898,29 +1043,6 @@ export default function AdminPage() {
                           <span className="cell-sub">
                             {appt.paidAt ? new Date(appt.paidAt).toLocaleDateString('en-IN') : '—'}
                           </span>
-                        </td>
-                        <td>
-                          {appt.paymentStatus !== 'paid' ? (
-                            <button
-                              type="button"
-                              className="btn-mark-paid"
-                              onClick={() => handleUpdatePayment(appt.id, 'paid')}
-                            >
-                              Record Payment
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="btn-refund-action"
-                              onClick={() => {
-                                if (confirm(`Issue refund for ${appt.fullName} (₹${appt.amount || 800})?`)) {
-                                  handleUpdatePayment(appt.id, 'refunded');
-                                }
-                              }}
-                            >
-                              Issue Refund
-                            </button>
-                          )}
                         </td>
                       </tr>
                     ))}
@@ -957,3 +1079,4 @@ export default function AdminPage() {
     </div>
   );
 }
+

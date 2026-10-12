@@ -21,26 +21,10 @@ const DATA_DIR = isServerless
   : path.join(process.cwd(), 'data');
 
 const AVAILABILITY_FILE = path.join(DATA_DIR, 'doctor-availability.json');
+const BUNDLED_AVAILABILITY_FILE = path.join(process.cwd(), 'data', 'doctor-availability.json');
 
 // In-memory fallback
-let inMemoryOverrides: DoctorOverride[] = [
-  // Preset default sample override for next Monday (or upcoming date) for demonstration
-  {
-    id: 'sample-conf-1',
-    date: '2026-10-19', // Next Monday
-    type: 'full_day',
-    reason: 'Attending International Homeopathy Congress',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'sample-slot-1',
-    date: '2026-10-14',
-    type: 'specific_slots',
-    blockedSlots: ['11:15', '12:00'],
-    reason: 'Clinical Case Review Meeting',
-    createdAt: new Date().toISOString(),
-  },
-];
+let inMemoryOverrides: DoctorOverride[] = [];
 
 function ensureDataDir(): boolean {
   try {
@@ -57,8 +41,13 @@ function ensureDataDir(): boolean {
 export function getAllDoctorOverrides(): DoctorOverride[] {
   if (ensureDataDir()) {
     try {
-      if (fs.existsSync(AVAILABILITY_FILE)) {
-        const raw = fs.readFileSync(AVAILABILITY_FILE, 'utf-8');
+      let fileToRead = AVAILABILITY_FILE;
+      if (!fs.existsSync(fileToRead) && fs.existsSync(BUNDLED_AVAILABILITY_FILE)) {
+        fileToRead = BUNDLED_AVAILABILITY_FILE;
+      }
+
+      if (fs.existsSync(fileToRead)) {
+        const raw = fs.readFileSync(fileToRead, 'utf-8');
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           // Merge with any in-memory additions
@@ -159,3 +148,4 @@ export function getDoctorBlockedDates(): { date: string; reason: string }[] {
     .filter((o) => o.type === 'full_day')
     .map((o) => ({ date: o.date, reason: o.reason }));
 }
+

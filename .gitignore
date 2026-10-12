@@ -31,9 +31,8 @@ yarn-error.log*
 .env.production.local
 
 # local runtime data & tokens (NEVER commit secrets or runtime data)
-/data/
-data/
-data/*
+data/google-tokens.json
+data/google-config.json
 
 # typescript
 *.tsbuildinfo
