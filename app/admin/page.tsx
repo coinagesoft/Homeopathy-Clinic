@@ -134,6 +134,34 @@ function IconArrowRight() {
   );
 }
 
+// Customer identity resolution: same email = same customer
+function getCustomerKey(email?: string, phone?: string): string {
+  const cleanEmail = email ? email.trim().toLowerCase() : '';
+  if (cleanEmail) {
+    return cleanEmail;
+  }
+  const cleanPhone = phone ? phone.replace(/[^0-9]/g, '').slice(-10) : '';
+  return cleanPhone ? `phone:${cleanPhone}` : 'unknown';
+}
+
+function pickBestName(existing: string, candidate: string): string {
+  if (!existing) return candidate;
+  if (!candidate) return existing;
+  if (candidate.trim().length > existing.trim().length) {
+    return candidate.trim();
+  }
+  return existing;
+}
+
+function pickBestPhone(existing: string, candidate: string): string {
+  if (!existing) return candidate;
+  if (!candidate) return existing;
+  if (candidate.startsWith('+') && !existing.startsWith('+')) {
+    return candidate;
+  }
+  return candidate.length > existing.length ? candidate : existing;
+}
+
 export default function AdminPage() {
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -367,7 +395,7 @@ export default function AdminPage() {
     }
   };
 
-  // Group Appointments by Unique Patient
+  // Group Appointments by Unique Customer (Same email = same customer)
   const patientDirectory = useMemo(() => {
     const map = new Map<
       string,
@@ -381,10 +409,13 @@ export default function AdminPage() {
     >();
 
     appointments.forEach((appt) => {
-      const key = appt.phone.replace(/[^0-9]/g, '') || appt.email.toLowerCase();
+      const key = getCustomerKey(appt.email, appt.phone);
       const existing = map.get(key);
       if (existing) {
         existing.appointments.push(appt);
+        existing.fullName = pickBestName(existing.fullName, appt.fullName);
+        existing.phone = pickBestPhone(existing.phone, appt.phone);
+        if (!existing.age && appt.age) existing.age = appt.age;
       } else {
         map.set(key, {
           fullName: appt.fullName,
@@ -398,6 +429,14 @@ export default function AdminPage() {
 
     return Array.from(map.values());
   }, [appointments]);
+
+  const findPatientGroup = useCallback(
+    (appt: Appointment) => {
+      const key = getCustomerKey(appt.email, appt.phone);
+      return patientDirectory.find((p) => getCustomerKey(p.email, p.phone) === key);
+    },
+    [patientDirectory]
+  );
 
   // If Not Authenticated, Render Login Screen
   if (!isAuthenticated) {
@@ -757,11 +796,7 @@ export default function AdminPage() {
                                 type="button"
                                 className="patient-name-link"
                                 onClick={() => {
-                                  const group = patientDirectory.find(
-                                    (p) =>
-                                      p.phone === appt.phone ||
-                                      p.email.toLowerCase() === appt.email.toLowerCase()
-                                  );
+                                  const group = findPatientGroup(appt);
                                   setSelectedPatient(group || {
                                     fullName: appt.fullName,
                                     phone: appt.phone,
@@ -831,11 +866,7 @@ export default function AdminPage() {
                                 className="action-btn-record"
                                 title="View Patient Details & Notes"
                                 onClick={() => {
-                                  const group = patientDirectory.find(
-                                    (p) =>
-                                      p.phone === appt.phone ||
-                                      p.email.toLowerCase() === appt.email.toLowerCase()
-                                  );
+                                  const group = findPatientGroup(appt);
                                   setSelectedPatient(group || {
                                     fullName: appt.fullName,
                                     phone: appt.phone,
@@ -874,7 +905,7 @@ export default function AdminPage() {
               <div>
                 <h3 className="section-title">Patient Directory &amp; Records</h3>
                 <p className="section-subtitle">
-                  {patientDirectory.length} individual patients registered. Click on any patient to view their complete consultation &amp; prescription history.
+                  {patientDirectory.length} individual patient{patientDirectory.length === 1 ? '' : 's'} registered. Click on any patient to view their complete consultation &amp; prescription history.
                 </p>
               </div>
             </div>
@@ -888,7 +919,7 @@ export default function AdminPage() {
                 const latestAppt = patient.appointments[0];
 
                 return (
-                  <div key={patient.phone} className="patient-card">
+                  <div key={patient.email || patient.phone} className="patient-card">
                     <div className="patient-card-header">
                       <div className="patient-avatar-circle">
                         {patient.fullName.slice(0, 2).toUpperCase()}

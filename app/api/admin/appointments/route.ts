@@ -40,7 +40,12 @@ export async function GET(request: NextRequest) {
       .reduce((sum, a) => sum + (a.amount || 800), 0);
 
     const uniquePatients = new Set(
-      appointments.map((a) => a.phone.replace(/[^0-9]/g, '') || a.email.toLowerCase())
+      appointments.map((a) => {
+        const cleanEmail = a.email ? a.email.trim().toLowerCase() : '';
+        if (cleanEmail) return cleanEmail;
+        const cleanPhone = a.phone ? a.phone.replace(/[^0-9]/g, '').slice(-10) : '';
+        return cleanPhone ? `phone:${cleanPhone}` : a.id;
+      })
     ).size;
 
     // Apply Filters
