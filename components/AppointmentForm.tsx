@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import CalendarPicker from './CalendarPicker';
 
 const SLOTS = [
   { value: '09:00', label: '9:00 AM' },
@@ -55,7 +56,7 @@ export default function AppointmentForm() {
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBooking | null>(null);
-  const [todayIso, setTodayIso] = useState('');
+  const [tomorrowIso, setTomorrowIso] = useState('');
 
   // Real booked slots loaded from backend
   const [serverBookedSlots, setServerBookedSlots] = useState<string[]>([]);
@@ -70,6 +71,7 @@ export default function AppointmentForm() {
   const [googleMessage, setGoogleMessage] = useState<string | null>(null);
 
   const successBoxRef = useRef<HTMLDivElement>(null);
+  const calendarSectionRef = useRef<HTMLDivElement>(null);
   const slotSectionRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -94,16 +96,18 @@ export default function AppointmentForm() {
       .catch((err) => console.error('Error fetching Google status:', err));
   };
 
-  // Initialize date logic safely on client side
+  // Initialize date logic safely on client side (only allow booking from tomorrow onwards)
   useEffect(() => {
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
-      now.getDate()
-    ).padStart(2, '0')}`;
-    setTodayIso(today);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(
+      2,
+      '0'
+    )}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    setTomorrowIso(tomorrowStr);
 
-    // Initial date: if today is Sunday, select Monday
-    const initial = new Date();
+    // Initial date: start from tomorrow; if tomorrow is Sunday, advance to Monday
+    const initial = new Date(tomorrow);
     if (initial.getDay() === 0) {
       initial.setDate(initial.getDate() + 1);
     }
@@ -148,7 +152,7 @@ export default function AppointmentForm() {
   const validateField = (
     name: keyof FormData,
     value: string,
-    currentToday: string = todayIso
+    currentTomorrow: string = tomorrowIso
   ): string => {
     const trimmed = value.trim();
 
@@ -188,7 +192,9 @@ export default function AppointmentForm() {
 
       case 'date': {
         if (!trimmed) return 'Please choose a preferred date.';
-        if (currentToday && trimmed < currentToday) return 'Please choose today or a later date.';
+        if (currentTomorrow && trimmed < currentTomorrow) {
+          return 'Appointments must be booked from tomorrow onwards. Same-day or past bookings are not allowed.';
+        }
         const d = new Date(`${trimmed}T00:00:00`);
         if (d.getDay() === 0) return 'The clinic is closed on Sundays. Please choose another day.';
         return '';
@@ -226,6 +232,15 @@ export default function AppointmentForm() {
       const errorMsg = validateField(fieldName, value);
       setErrors((prev) => ({ ...prev, [fieldName]: errorMsg }));
     }
+  };
+
+  const handleCalendarDateSelect = (dateIso: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      date: dateIso,
+      time: '',
+    }));
+    setErrors((prev) => ({ ...prev, date: '', time: '' }));
   };
 
   const handleSlotSelect = (slotValue: string) => {
@@ -273,6 +288,8 @@ export default function AppointmentForm() {
     if (firstInvalidKey) {
       if (firstInvalidKey === 'time') {
         slotSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (firstInvalidKey === 'date') {
+        calendarSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else {
         const inputElement = formRef.current?.elements.namedItem(firstInvalidKey) as HTMLElement | null;
         inputElement?.focus();
@@ -540,62 +557,65 @@ export default function AppointmentForm() {
               </p>
             </div>
 
-            {/* Preferred Date */}
-            <div className={`field ${errors.date ? 'invalid' : ''}`}>
-              <label htmlFor="date">Preferred date</label>
-              <input
-                type="date"
-                id="date"
-                name="date"
-                min={todayIso}
-                value={formData.date}
-                onChange={handleInputChange}
-                aria-invalid={!!errors.date}
-                aria-describedby="date-error"
+            {/* Preferred Date — Custom Interactive Calendar */}
+            <div
+              className={`field full calendar-booking-field ${errors.date ? 'invalid' : ''}`}
+              ref={calendarSectionRef}
+            >
+              <div className="calendar-field-header">
+                <label className="calendar-field-label">
+                  Choose Preferred Date <span>(Advance booking only &bull; Mon to Sat)</span>
+                </label>
+                <p className="calendar-field-desc">
+                  Select an available date from tomorrow onwards. The clinic is closed on Sundays.
+                </p>
+              </div>
+
+              <CalendarPicker
+                selectedDate={formData.date}
+                onSelectDate={handleCalendarDateSelect}
+                minDate={tomorrowIso}
                 disabled={isSubmitting}
               />
-              <p className="error-text" id="date-error">
-                {errors.date}
-              </p>
-            </div>
 
-            {/* Selected Time */}
-            <div className={`field ${errors.time ? 'invalid' : ''}`}>
-              <label htmlFor="time">Selected time</label>
-              <input
-                type="text"
-                id="time"
-                name="time"
-                readOnly
-                placeholder="Choose a slot below"
-                value={selectedSlotLabel}
-                aria-invalid={!!errors.time}
-                aria-describedby="time-error"
-              />
-              <p className="error-text" id="time-error">
-                {errors.time}
-              </p>
+              <input type="hidden" name="date" value={formData.date} />
+
+              {errors.date && (
+                <p className="error-text" id="date-error" style={{ marginTop: '8px' }}>
+                  {errors.date}
+                </p>
+              )}
             </div>
 
             {/* Time Slot Picker */}
-            <div className="field full">
+            <div className={`field full ${errors.time ? 'invalid' : ''}`}>
+              <input type="hidden" name="time" value={formData.time} />
+
               <div className="slot-section" ref={slotSectionRef}>
                 <div className="slot-head">
-                  <h3>Choose a time</h3>
-                  <p>Clinic hours: 9:00 AM to 6:00 PM, Monday to Saturday</p>
+                  <h3>Choose a Consultation Time</h3>
+                  <p>Clinic hours: 9:00 AM to 6:00 PM, Monday to Saturday (Advance booking only)</p>
                 </div>
 
                 <p className="slot-date-note" id="slot-date-note">
                   {!formData.date
-                    ? 'Select a date to see available times.'
+                    ? 'Select a date above to see available times.'
+                    : tomorrowIso && formData.date < tomorrowIso
+                    ? 'Same-day and past appointments cannot be booked online. Please select tomorrow or a later date.'
                     : isSunday
                     ? 'The clinic is closed on Sunday. Please choose another date.'
                     : isLoadingSlots
-                    ? 'Checking available slots...'
+                    ? 'Checking real-time calendar availability...'
                     : `Available times on ${prettyDate}`}
                 </p>
 
-                {!isSunday && formData.date && (
+                {tomorrowIso && formData.date && formData.date < tomorrowIso && (
+                  <div className="notice-warning" style={{ marginTop: '14px' }}>
+                    Appointments cannot be booked for current date or previous dates. Please select tomorrow or a later date.
+                  </div>
+                )}
+
+                {!isSunday && formData.date && (!tomorrowIso || formData.date >= tomorrowIso) && (
                   <>
                     <div className="slot-grid" id="slot-grid">
                       {SLOTS.map((slot) => {
@@ -635,11 +655,29 @@ export default function AppointmentForm() {
                   </>
                 )}
 
-                <p className="selected-slot" id="selected-slot" aria-live="polite">
-                  {selectedSlotLabel ? `Selected: ${selectedSlotLabel}` : ''}
-                </p>
-                <p className="slot-note">
-                  Crossed-out times are already booked. The clinic is closed on Sundays.
+                {/* Selected Date & Time Confirmation Banner */}
+                {formData.date && formData.time && !isSunday && (
+                  <div className="selected-slot-banner" aria-live="polite">
+                    <div className="slot-banner-icon">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                    </div>
+                    <div className="slot-banner-content">
+                      <strong>Confirmed Appointment Selection:</strong>
+                      <span>{prettyDate} at {selectedSlotLabel}</span>
+                    </div>
+                  </div>
+                )}
+
+                {errors.time && (
+                  <p className="error-text" id="time-error" style={{ marginTop: '10px' }}>
+                    {errors.time}
+                  </p>
+                )}
+
+                <p className="slot-note" style={{ marginTop: '14px' }}>
+                  Slots marked Booked are already reserved in Dr. Aarav&apos;s Google Calendar.
                 </p>
               </div>
             </div>

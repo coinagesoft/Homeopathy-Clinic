@@ -68,10 +68,12 @@ export default function HomePage() {
           <div>
             <Image
               className="photo"
-              src="/assets/consultation-photo-clean.png"
+              src="/assets/consultation-photo-clean.jpg"
               alt="Dr. Aarav Mehta consulting with a patient in an unhurried, attentive clinic environment"
               width={1200}
               height={896}
+              unoptimized
+              priority
             />
           </div>
           <div className="copy">

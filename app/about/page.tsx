@@ -28,6 +28,7 @@ export default function AboutPage() {
               width={646}
               height={576}
               priority
+              unoptimized
             />
           </div>
           <div>

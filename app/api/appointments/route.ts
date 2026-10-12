@@ -85,10 +85,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const dateObj = new Date(`${date}T00:00:00`);
+    const dateObj = new Date(`${date}T00:00:00+05:30`);
     if (isNaN(dateObj.getTime()) || dateObj.getDay() === 0) {
       return NextResponse.json(
         { error: 'Appointments cannot be booked on Sundays as clinic is closed.' },
+        { status: 400 }
+      );
+    }
+
+    // Appointments can only be booked from tomorrow onwards (in Asia/Kolkata timezone)
+    const nowIst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    nowIst.setDate(nowIst.getDate() + 1);
+    const tomorrowIso = `${nowIst.getFullYear()}-${String(nowIst.getMonth() + 1).padStart(2, '0')}-${String(
+      nowIst.getDate()
+    ).padStart(2, '0')}`;
+
+    if (date < tomorrowIso) {
+      return NextResponse.json(
+        {
+          error:
+            'Appointments must be booked from tomorrow onwards. Same-day and previous date bookings are not allowed.',
+        },
         { status: 400 }
       );
     }
