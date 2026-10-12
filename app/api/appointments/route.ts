@@ -10,6 +10,7 @@ import {
   isGoogleConnected,
   createCalendarMeeting,
   generateGoogleCalendarUrl,
+  getBookedSlotsFromCalendar,
   DOCTOR_EMAIL,
 } from '@/lib/google';
 
@@ -24,10 +25,13 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const bookedSlots = getBookedSlotsForDate(date);
+  const localSlots = getBookedSlotsForDate(date);
+  const calendarSlots = await getBookedSlotsFromCalendar(date);
+  const allBookedSlots = Array.from(new Set([...localSlots, ...calendarSlots]));
+
   return NextResponse.json({
     date,
-    bookedSlots,
+    bookedSlots: allBookedSlots,
   });
 }
 
@@ -96,8 +100,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if slot is already booked
-    if (isSlotBooked(date, time)) {
+    // Check if slot is already booked (local disk or Google Calendar)
+    const localBooked = isSlotBooked(date, time);
+    const calendarSlots = await getBookedSlotsFromCalendar(date);
+    if (localBooked || calendarSlots.includes(time)) {
       return NextResponse.json(
         {
           error:
@@ -162,10 +168,8 @@ export async function POST(request: NextRequest) {
         doctorEmail: DOCTOR_EMAIL,
         calendarError: calendarError || undefined,
         message: eventCreated
-          ? `Appointment scheduled and Google Meet link generated! Event added to ${DOCTOR_EMAIL} and ${newAppointment.email}.`
-          : calendarError
-          ? `Appointment booked! Google Calendar sync note: ${calendarError}. Use the button below to add to your calendar.`
-          : `Appointment booked! Google Calendar is not yet authorized for ${DOCTOR_EMAIL}. Use the button below to add to calendar.`,
+          ? 'Your consultation has been booked successfully! The appointment and Google Meet video link have been scheduled on your calendar.'
+          : 'Your consultation has been booked! Use the button below to add it to your calendar.',
       },
       { status: 201 }
     );

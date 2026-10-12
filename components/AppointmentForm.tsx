@@ -352,36 +352,6 @@ export default function AppointmentForm() {
   return (
     <div>
       {/* Google Calendar status banner for doctor */}
-      <div className="google-status-bar">
-        <div>
-          <strong>Doctor Calendar:</strong>{' '}
-          {googleStatus?.connected ? (
-            <span className="meet-badge">
-              Connected: {googleStatus.doctorEmail}
-            </span>
-          ) : (
-            <span style={{ color: '#b45309' }}>
-              {googleStatus?.doctorEmail || 'shivrajrbabar@gmail.com'} (Not connected)
-            </span>
-          )}
-        </div>
-        {!googleStatus?.connected && (
-          <a
-            href="/api/auth/google"
-            className="btn-connect-google"
-            title="Authenticate doctor account to enable Google Calendar & Meet"
-          >
-            Connect Google Calendar (1-Click)
-          </a>
-        )}
-      </div>
-
-      {googleMessage && (
-        <div className="success-box" style={{ marginBottom: '18px' }}>
-          <p style={{ color: 'var(--green-dark)', fontWeight: 600 }}>{googleMessage}</p>
-        </div>
-      )}
-
       {/* Booking confirmation box */}
       {confirmedBooking && (
         <div
@@ -403,23 +373,16 @@ export default function AppointmentForm() {
 
           <div className="meet-box">
             <h3>Google Meet Consultation</h3>
-            <p>
-              Doctor: <strong>{confirmedBooking.doctorEmail}</strong>
-              <br />
-              Patient: <strong>{confirmedBooking.email}</strong>
-            </p>
 
             {confirmedBooking.googleConnected ? (
               <div className="notice-success">
-                Calendar event has been automatically created on{' '}
-                <strong>{confirmedBooking.doctorEmail}</strong> and invitation sent to{' '}
-                <strong>{confirmedBooking.email}</strong> with Google Meet video link.
+                Your consultation has been booked successfully! The appointment with Google Meet
+                video call has been scheduled on your calendar.
               </div>
             ) : (
               <div className="notice-warning">
-                {confirmedBooking.calendarError
-                  ? `Google Calendar Sync Notice: ${confirmedBooking.calendarError}. Please add this appointment to your calendar using the button below:`
-                  : 'Google Calendar background sync is not yet linked. Use the button below to add this appointment directly to your Google Calendar now with one click.'}
+                Your consultation has been booked! Use the button below to add this appointment
+                directly to your Google Calendar.
               </div>
             )}
 
@@ -457,20 +420,6 @@ export default function AppointmentForm() {
                 Download .ics Invite
               </a>
             </div>
-
-            {confirmedBooking.meetLink && (
-              <p style={{ marginTop: '14px', fontSize: '13px', color: 'var(--muted)' }}>
-                Direct Meet Link:{' '}
-                <a
-                  href={confirmedBooking.meetLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ textDecoration: 'underline', color: 'var(--link)' }}
-                >
-                  {confirmedBooking.meetLink}
-                </a>
-              </p>
-            )}
           </div>
         </div>
       )}
@@ -647,26 +596,43 @@ export default function AppointmentForm() {
                 </p>
 
                 {!isSunday && formData.date && (
-                  <div className="slot-grid" id="slot-grid">
-                    {SLOTS.map((slot) => {
-                      const isBooked = serverBookedSlots.includes(slot.value);
-                      const isSelected = formData.time === slot.value;
-                      return (
-                        <button
-                          key={slot.value}
-                          type="button"
-                          className={`slot-btn ${isBooked ? 'booked' : ''} ${
-                            isSelected ? 'selected' : ''
-                          }`}
-                          disabled={isBooked || isSubmitting}
-                          aria-label={isBooked ? `${slot.label} booked` : slot.label}
-                          onClick={() => handleSlotSelect(slot.value)}
-                        >
-                          {slot.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <>
+                    <div className="slot-grid" id="slot-grid">
+                      {SLOTS.map((slot) => {
+                        const isBooked = serverBookedSlots.includes(slot.value);
+                        const isSelected = formData.time === slot.value;
+                        return (
+                          <button
+                            key={slot.value}
+                            type="button"
+                            className={`slot-btn ${isBooked ? 'booked' : 'open'} ${
+                              isSelected ? 'selected' : ''
+                            }`}
+                            disabled={isBooked || isSubmitting}
+                            aria-label={isBooked ? `${slot.label} (Booked)` : `${slot.label} (Available)`}
+                            onClick={() => handleSlotSelect(slot.value)}
+                          >
+                            <span className="slot-time">{slot.label}</span>
+                            <span className={`slot-badge ${isBooked ? 'badge-booked' : 'badge-open'}`}>
+                              {isBooked ? 'Booked' : 'Available'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="slot-legend">
+                      <span className="legend-item">
+                        <span className="legend-dot dot-open"></span> Available
+                      </span>
+                      <span className="legend-item">
+                        <span className="legend-dot dot-booked"></span> Already Booked
+                      </span>
+                      <span className="legend-item">
+                        <span className="legend-dot dot-selected"></span> Selected
+                      </span>
+                    </div>
+                  </>
                 )}
 
                 <p className="selected-slot" id="selected-slot" aria-live="polite">

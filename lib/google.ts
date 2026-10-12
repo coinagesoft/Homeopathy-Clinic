@@ -198,6 +198,52 @@ Doctor Email: ${DOCTOR_EMAIL}`,
 }
 
 /**
+ * Queries Google Calendar for booked events on a given date (Asia/Kolkata).
+ * Returns array of booked time slot strings (e.g. ['09:00', '09:45']).
+ */
+export async function getBookedSlotsFromCalendar(date: string): Promise<string[]> {
+  const oauth2Client = getOAuth2Client();
+  if (!oauth2Client || !isGoogleConnected()) {
+    return [];
+  }
+
+  try {
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    const timeMin = new Date(`${date}T00:00:00+05:30`).toISOString();
+    const timeMax = new Date(`${date}T23:59:59+05:30`).toISOString();
+
+    const response = await calendar.events.list({
+      calendarId: 'primary',
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      orderBy: 'startTime',
+    });
+
+    const bookedSlots = new Set<string>();
+    for (const item of response.data.items || []) {
+      if (item.status === 'cancelled') continue;
+      const startDateTime = item.start?.dateTime;
+      if (startDateTime) {
+        const d = new Date(startDateTime);
+        const istTime = d.toLocaleTimeString('en-GB', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+        bookedSlots.add(istTime);
+      }
+    }
+
+    return Array.from(bookedSlots);
+  } catch (err) {
+    console.error('Failed to query Google Calendar for booked slots:', err);
+    return [];
+  }
+}
+
+/**
  * Generates an instant 1-Click "Add to Google Calendar" web URL prefilled with
  * doctor and client attendees, Google Meet link, and date/time.
  */
