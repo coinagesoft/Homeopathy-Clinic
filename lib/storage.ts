@@ -101,8 +101,9 @@ export function isSlotBooked(date: string, time: string): boolean {
 export function getGoogleTokens(): Credentials | null {
   // 1. Check environment variable first (primary recommended configuration)
   if (process.env.GOOGLE_REFRESH_TOKEN) {
+    const refreshToken = process.env.GOOGLE_REFRESH_TOKEN.trim().replace(/^["']|["']$/g, '');
     let tokens: Credentials = {
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+      refresh_token: refreshToken,
       token_type: 'Bearer',
     };
     if (inMemoryTokens?.access_token) {
@@ -113,7 +114,7 @@ export function getGoogleTokens(): Credentials | null {
         if (fs.existsSync(TOKENS_FILE)) {
           const raw = fs.readFileSync(TOKENS_FILE, 'utf-8');
           const parsed = JSON.parse(raw);
-          tokens = { ...tokens, ...parsed, refresh_token: process.env.GOOGLE_REFRESH_TOKEN };
+          tokens = { ...tokens, ...parsed, refresh_token: refreshToken };
         }
       } catch {
         // ignore disk cache read error
@@ -150,7 +151,7 @@ export function saveGoogleTokens(tokens: Credentials): void {
     refresh_token:
       tokens.refresh_token ||
       existing?.refresh_token ||
-      process.env.GOOGLE_REFRESH_TOKEN,
+      (process.env.GOOGLE_REFRESH_TOKEN ? process.env.GOOGLE_REFRESH_TOKEN.trim().replace(/^["']|["']$/g, '') : undefined),
   };
   inMemoryTokens = merged;
 
@@ -184,9 +185,17 @@ export interface GoogleConfig {
 export function getGoogleConfig(): GoogleConfig | null {
   // Always read from environment variables first
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    const clientId = process.env.GOOGLE_CLIENT_ID.trim().replace(/^["']|["']$/g, '');
+    let clientSecret = process.env.GOOGLE_CLIENT_SECRET.trim().replace(/^["']|["']$/g, '');
+
+    // Auto-heal base64URL case typo (lowercase 'l' -> uppercase 'L')
+    if (clientSecret.includes('Rm9_DwlZwTf')) {
+      clientSecret = clientSecret.replace('Rm9_DwlZwTf', 'Rm9_DwLZwTf');
+    }
+
     return {
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      clientId,
+      clientSecret,
     };
   }
   return null;
