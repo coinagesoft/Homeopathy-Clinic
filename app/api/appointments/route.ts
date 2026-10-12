@@ -13,6 +13,23 @@ import {
   getBookedSlotsFromCalendar,
   DOCTOR_EMAIL,
 } from '@/lib/google';
+import {
+  isDateBlockedByDoctor,
+  getBlockedSlotsForDate,
+} from '@/lib/availability';
+
+const ALL_CLINIC_SLOTS = [
+  '09:00',
+  '09:45',
+  '10:30',
+  '11:15',
+  '12:00',
+  '12:45',
+  '15:00',
+  '15:45',
+  '16:30',
+  '17:15',
+];
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -25,13 +42,21 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const doctorDateBlock = isDateBlockedByDoctor(date);
+  const doctorBlockedSlots = getBlockedSlotsForDate(date, ALL_CLINIC_SLOTS);
+
   const localSlots = getBookedSlotsForDate(date);
   const calendarSlots = await getBookedSlotsFromCalendar(date);
-  const allBookedSlots = Array.from(new Set([...localSlots, ...calendarSlots]));
+  const allBookedSlots = Array.from(
+    new Set([...localSlots, ...calendarSlots, ...doctorBlockedSlots])
+  );
 
   return NextResponse.json({
     date,
     bookedSlots: allBookedSlots,
+    doctorBlockedSlots,
+    isDoctorBlocked: doctorDateBlock.blocked,
+    doctorBlockReason: doctorDateBlock.reason,
   });
 }
 
@@ -125,6 +150,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check doctor availability override (Full Day or Slot)
+    const doctorDateBlock = isDateBlockedByDoctor(date);
+    if (doctorDateBlock.blocked) {
+      return NextResponse.json(
+        {
+          error: `Doctor is unavailable on ${date} (${doctorDateBlock.reason || 'Doctor on leave'}). Please choose another date.`,
+          isDoctorBlocked: true,
+        },
+        { status: 400 }
+      );
+    }
+
+    const doctorBlockedSlots = getBlockedSlotsForDate(date, ALL_CLINIC_SLOTS);
+    if (doctorBlockedSlots.includes(time)) {
+      return NextResponse.json(
+        {
+          error: `The time slot ${time} on ${date} is unavailable as doctor is not available at this time. Please select another slot.`,
+          isDoctorBlocked: true,
+        },
+        { status: 409 }
+      );
+    }
+
     // Check if slot is already booked (local disk or Google Calendar)
     const localBooked = isSlotBooked(date, time);
     const calendarSlots = await getBookedSlotsFromCalendar(date);
@@ -151,6 +199,13 @@ export async function POST(request: NextRequest) {
       time,
       message: message ? String(message).trim() : '',
       createdAt: new Date().toISOString(),
+      status: 'confirmed',
+      paymentStatus: 'paid',
+      amount: 800,
+      paymentMethod: 'UPI',
+      paymentId: `PAY-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+      paidAt: new Date().toISOString(),
+      notes: '',
     };
 
     let meetLink = '';

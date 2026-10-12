@@ -7,6 +7,7 @@ interface CalendarPickerProps {
   onSelectDate: (dateIso: string) => void;
   minDate: string; // "YYYY-MM-DD" (tomorrow)
   disabled?: boolean;
+  doctorBlockedDates?: { date: string; reason: string }[];
 }
 
 const MONTH_NAMES = [
@@ -39,6 +40,7 @@ export default function CalendarPicker({
   onSelectDate,
   minDate,
   disabled = false,
+  doctorBlockedDates = [],
 }: CalendarPickerProps) {
   // Determine current today in YYYY-MM-DD
   const todayIso = useMemo(() => {
@@ -135,13 +137,19 @@ export default function CalendarPicker({
       const isToday = todayIso ? iso === todayIso : false;
       const isBeforeMin = minDate ? iso < minDate : false;
 
-      // Unbookable if Sunday, before minimum allowed date (e.g. today or past), or disabled
-      const isUnselectable = isSunday || isBeforeMin || disabled;
+      // Check if doctor marked this whole date as leave/blackout
+      const doctorBlocked = doctorBlockedDates.find((b) => b.date === iso);
+      const isDoctorLeave = Boolean(doctorBlocked);
+
+      // Unbookable if Sunday, doctor on leave, before minimum allowed date (e.g. today or past), or disabled
+      const isUnselectable = isSunday || isDoctorLeave || isBeforeMin || disabled;
       const isSelected = iso === selectedDate;
 
       let reason = '';
       if (isSunday) {
         reason = 'Clinic closed on Sundays';
+      } else if (isDoctorLeave) {
+        reason = `Doctor on leave: ${doctorBlocked?.reason || 'Unavailable'}`;
       } else if (isToday) {
         reason = 'Advance booking required (Today is closed for online booking)';
       } else if (isPast) {
@@ -154,6 +162,7 @@ export default function CalendarPicker({
         day,
         iso,
         isSunday,
+        isDoctorLeave,
         isToday,
         isPast,
         isBeforeMin,
@@ -164,7 +173,7 @@ export default function CalendarPicker({
     }
 
     return days;
-  }, [viewYear, viewMonth, todayIso, minDate, selectedDate, disabled]);
+  }, [viewYear, viewMonth, todayIso, minDate, selectedDate, disabled, doctorBlockedDates]);
 
   const selectedDisplayFormatted = useMemo(() => {
     if (!selectedDate) return '';
@@ -245,6 +254,7 @@ export default function CalendarPicker({
             iso,
             day,
             isSunday,
+            isDoctorLeave,
             isToday,
             isUnselectable,
             isSelected,
@@ -257,7 +267,9 @@ export default function CalendarPicker({
               type="button"
               className={`cal-day-cell ${isSelected ? 'selected' : ''} ${
                 isUnselectable ? 'disabled' : 'available'
-              } ${isSunday ? 'sunday' : ''} ${isToday ? 'today' : ''}`}
+              } ${isSunday ? 'sunday' : ''} ${isDoctorLeave ? 'doctor-leave' : ''} ${
+                isToday ? 'today' : ''
+              }`}
               disabled={isUnselectable || disabled}
               onClick={() => onSelectDate(iso!)}
               aria-label={`${day} ${MONTH_NAMES[viewMonth]} ${viewYear}${
@@ -269,6 +281,7 @@ export default function CalendarPicker({
               <span className="cal-day-num">{day}</span>
               {isToday && <span className="cal-today-badge">Today</span>}
               {isSunday && <span className="cal-closed-pill">Closed</span>}
+              {isDoctorLeave && <span className="cal-leave-pill" title={reason}>Leave</span>}
               {!isUnselectable && !isSelected && <span className="cal-avail-dot" />}
               {isSelected && <span className="cal-selected-check">✓</span>}
             </button>
@@ -289,6 +302,10 @@ export default function CalendarPicker({
         <div className="cal-legend-item">
           <span className="cal-legend-dot dot-closed" />
           <span>Sunday (Closed)</span>
+        </div>
+        <div className="cal-legend-item">
+          <span className="cal-legend-dot dot-leave" />
+          <span>Doctor On Leave</span>
         </div>
         <div className="cal-legend-item">
           <span className="cal-legend-dot dot-disabled" />

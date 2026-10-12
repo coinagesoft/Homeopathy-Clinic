@@ -62,6 +62,12 @@ export default function AppointmentForm() {
   const [serverBookedSlots, setServerBookedSlots] = useState<string[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
+  // Doctor availability overrides loaded from backend
+  const [doctorBlockedDates, setDoctorBlockedDates] = useState<{ date: string; reason: string }[]>([]);
+  const [doctorBlockedSlots, setDoctorBlockedSlots] = useState<string[]>([]);
+  const [isDoctorDateBlocked, setIsDoctorDateBlocked] = useState(false);
+  const [doctorBlockReason, setDoctorBlockReason] = useState('');
+
   // Google status for doctor
   const [googleStatus, setGoogleStatus] = useState<{
     connected: boolean;
@@ -75,7 +81,7 @@ export default function AppointmentForm() {
   const slotSectionRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Check URL params for Google OAuth feedback & status
+  // Check URL params for Google OAuth feedback & status and fetch doctor availability
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -87,7 +93,19 @@ export default function AppointmentForm() {
     }
 
     fetchGoogleStatus();
+    fetchDoctorAvailability();
   }, []);
+
+  const fetchDoctorAvailability = () => {
+    fetch('/api/availability')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.blockedDates)) {
+          setDoctorBlockedDates(data.blockedDates);
+        }
+      })
+      .catch((err) => console.error('Error fetching doctor availability:', err));
+  };
 
   const fetchGoogleStatus = () => {
     fetch('/api/auth/google/status')
@@ -128,6 +146,9 @@ export default function AppointmentForm() {
     const isSun = new Date(`${dateString}T00:00:00`).getDay() === 0;
     if (isSun) {
       setServerBookedSlots([]);
+      setDoctorBlockedSlots([]);
+      setIsDoctorDateBlocked(false);
+      setDoctorBlockReason('');
       return;
     }
 
@@ -138,6 +159,13 @@ export default function AppointmentForm() {
         if (data.bookedSlots) {
           setServerBookedSlots(data.bookedSlots);
         }
+        if (data.doctorBlockedSlots) {
+          setDoctorBlockedSlots(data.doctorBlockedSlots);
+        } else {
+          setDoctorBlockedSlots([]);
+        }
+        setIsDoctorDateBlocked(Boolean(data.isDoctorBlocked));
+        setDoctorBlockReason(data.doctorBlockReason || '');
       })
       .catch((err) => console.error('Failed to load booked slots:', err))
       .finally(() => setIsLoadingSlots(false));
@@ -576,6 +604,7 @@ export default function AppointmentForm() {
                 onSelectDate={handleCalendarDateSelect}
                 minDate={tomorrowIso}
                 disabled={isSubmitting}
+                doctorBlockedDates={doctorBlockedDates}
               />
 
               <input type="hidden" name="date" value={formData.date} />
@@ -604,6 +633,8 @@ export default function AppointmentForm() {
                     ? 'Same-day and past appointments cannot be booked online. Please select tomorrow or a later date.'
                     : isSunday
                     ? 'The clinic is closed on Sunday. Please choose another date.'
+                    : isDoctorDateBlocked
+                    ? `Dr. Aarav is unavailable on ${prettyDate} (${doctorBlockReason || 'Doctor on leave'}).`
                     : isLoadingSlots
                     ? 'Checking real-time calendar availability...'
                     : `Available times on ${prettyDate}`}
@@ -615,26 +646,48 @@ export default function AppointmentForm() {
                   </div>
                 )}
 
-                {!isSunday && formData.date && (!tomorrowIso || formData.date >= tomorrowIso) && (
+                {isDoctorDateBlocked && (
+                  <div className="notice-warning" style={{ marginTop: '14px' }}>
+                    <strong>Doctor On Leave:</strong> Dr. Aarav is unavailable on this date ({doctorBlockReason || 'Doctor unavailable'}). Please select another date.
+                  </div>
+                )}
+
+                {!isSunday && !isDoctorDateBlocked && formData.date && (!tomorrowIso || formData.date >= tomorrowIso) && (
                   <>
                     <div className="slot-grid" id="slot-grid">
                       {SLOTS.map((slot) => {
+                        const isDoctorBlocked = doctorBlockedSlots.includes(slot.value);
                         const isBooked = serverBookedSlots.includes(slot.value);
+                        const isUnavailable = isBooked || isDoctorBlocked;
                         const isSelected = formData.time === slot.value;
                         return (
                           <button
                             key={slot.value}
                             type="button"
-                            className={`slot-btn ${isBooked ? 'booked' : 'open'} ${
-                              isSelected ? 'selected' : ''
-                            }`}
-                            disabled={isBooked || isSubmitting}
-                            aria-label={isBooked ? `${slot.label} (Booked)` : `${slot.label} (Available)`}
+                            className={`slot-btn ${
+                              isDoctorBlocked ? 'doctor-blocked' : isBooked ? 'booked' : 'open'
+                            } ${isSelected ? 'selected' : ''}`}
+                            disabled={isUnavailable || isSubmitting}
+                            aria-label={
+                              isDoctorBlocked
+                                ? `${slot.label} (Doctor Unavailable)`
+                                : isBooked
+                                ? `${slot.label} (Booked)`
+                                : `${slot.label} (Available)`
+                            }
                             onClick={() => handleSlotSelect(slot.value)}
                           >
                             <span className="slot-time">{slot.label}</span>
-                            <span className={`slot-badge ${isBooked ? 'badge-booked' : 'badge-open'}`}>
-                              {isBooked ? 'Booked' : 'Available'}
+                            <span
+                              className={`slot-badge ${
+                                isDoctorBlocked
+                                  ? 'badge-doctor-blocked'
+                                  : isBooked
+                                  ? 'badge-booked'
+                                  : 'badge-open'
+                              }`}
+                            >
+                              {isDoctorBlocked ? 'Unavailable' : isBooked ? 'Booked' : 'Available'}
                             </span>
                           </button>
                         );
@@ -647,6 +700,9 @@ export default function AppointmentForm() {
                       </span>
                       <span className="legend-item">
                         <span className="legend-dot dot-booked"></span> Already Booked
+                      </span>
+                      <span className="legend-item">
+                        <span className="legend-dot dot-leave"></span> Doctor Blocked
                       </span>
                       <span className="legend-item">
                         <span className="legend-dot dot-selected"></span> Selected

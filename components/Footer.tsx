@@ -29,6 +29,9 @@ export default function Footer() {
             <li>
               <Link href="/appointment">Appointment</Link>
             </li>
+            <li>
+              <Link href="/admin" style={{ color: 'var(--sky)' }}>Doctor Portal</Link>
+            </li>
           </ul>
         </div>
         <div>
@@ -67,7 +70,11 @@ export default function Footer() {
       </div>
       <div className="container footer-bottom">
         <span>© 2026 Dr. Aarav Homeopathy Clinic</span>
-        <span>Consultations by appointment</span>
+        <span>
+          <Link href="/admin" style={{ opacity: 0.85, textDecoration: 'underline' }}>
+            Doctor &amp; Admin Portal
+          </Link>
+        </span>
       </div>
     </footer>
   );

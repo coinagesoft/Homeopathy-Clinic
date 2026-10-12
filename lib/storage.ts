@@ -15,6 +15,14 @@ export interface Appointment {
   meetLink?: string;
   googleEventId?: string;
   createdAt: string;
+  // Status & Payment Management
+  status?: 'confirmed' | 'completed' | 'cancelled' | 'no-show';
+  paymentStatus?: 'paid' | 'pending' | 'refunded';
+  amount?: number; // In INR, default: 800
+  paymentMethod?: 'UPI' | 'Card' | 'NetBanking' | 'Cash' | 'Pending';
+  paymentId?: string;
+  paidAt?: string;
+  notes?: string;
 }
 
 // In Vercel / serverless runtime, process.cwd() is read-only (/var/task).
@@ -48,7 +56,21 @@ function ensureDataDir(): boolean {
   }
 }
 
+function normalizeAppointment(appt: Appointment): Appointment {
+  return {
+    ...appt,
+    status: appt.status || 'confirmed',
+    paymentStatus: appt.paymentStatus || 'paid',
+    amount: typeof appt.amount === 'number' ? appt.amount : 800,
+    paymentMethod: appt.paymentMethod || 'UPI',
+    paymentId: appt.paymentId || `PAY-${appt.id.slice(0, 8).toUpperCase()}`,
+    paidAt: appt.paidAt || appt.createdAt,
+    notes: appt.notes || '',
+  };
+}
+
 export function getAllAppointments(): Appointment[] {
+  let list: Appointment[] = [];
   if (ensureDataDir()) {
     try {
       if (fs.existsSync(APPOINTMENTS_FILE)) {
@@ -58,32 +80,89 @@ export function getAllAppointments(): Appointment[] {
           // Merge disk appointments with any in-memory additions
           const ids = new Set(parsed.map((a: Appointment) => a.id));
           const additions = inMemoryAppointments.filter((a) => !ids.has(a.id));
-          return [...parsed, ...additions];
+          list = [...parsed, ...additions];
         }
       }
     } catch (err) {
       console.warn('[storage] Failed to read appointments file, using in-memory fallback:', err);
+      list = inMemoryAppointments;
     }
+  } else {
+    list = inMemoryAppointments;
   }
-  return inMemoryAppointments;
+  return list.map(normalizeAppointment);
+}
+
+export function getAppointmentById(id: string): Appointment | null {
+  const all = getAllAppointments();
+  return all.find((a) => a.id === id) || null;
 }
 
 export function saveAppointment(appointment: Appointment): Appointment {
+  const normalized = normalizeAppointment(appointment);
   inMemoryAppointments = [
-    ...inMemoryAppointments.filter((a) => a.id !== appointment.id),
-    appointment,
+    ...inMemoryAppointments.filter((a) => a.id !== normalized.id),
+    normalized,
   ];
 
   if (ensureDataDir()) {
     try {
       const appointments = getAllAppointments();
-      fs.writeFileSync(APPOINTMENTS_FILE, JSON.stringify(appointments, null, 2), 'utf-8');
+      const deduped = Array.from(
+        new Map(appointments.map((a) => [a.id, a])).values()
+      );
+      fs.writeFileSync(APPOINTMENTS_FILE, JSON.stringify(deduped, null, 2), 'utf-8');
     } catch (err) {
       console.warn('[storage] Failed to write appointment to disk, saved in-memory:', err);
     }
   }
 
-  return appointment;
+  return normalized;
+}
+
+export function updateAppointment(id: string, updates: Partial<Appointment>): Appointment | null {
+  const all = getAllAppointments();
+  const index = all.findIndex((a) => a.id === id);
+  if (index === -1) return null;
+
+  const updated: Appointment = {
+    ...all[index],
+    ...updates,
+    id, // preserve ID
+  };
+
+  all[index] = updated;
+  inMemoryAppointments = [
+    ...inMemoryAppointments.filter((a) => a.id !== id),
+    updated,
+  ];
+
+  if (ensureDataDir()) {
+    try {
+      fs.writeFileSync(APPOINTMENTS_FILE, JSON.stringify(all, null, 2), 'utf-8');
+    } catch (err) {
+      console.warn('[storage] Failed to update appointment on disk:', err);
+    }
+  }
+
+  return updated;
+}
+
+export function deleteAppointment(id: string): boolean {
+  inMemoryAppointments = inMemoryAppointments.filter((a) => a.id !== id);
+
+  if (ensureDataDir()) {
+    try {
+      if (fs.existsSync(APPOINTMENTS_FILE)) {
+        const all = getAllAppointments().filter((a) => a.id !== id);
+        fs.writeFileSync(APPOINTMENTS_FILE, JSON.stringify(all, null, 2), 'utf-8');
+      }
+      return true;
+    } catch (err) {
+      console.warn('[storage] Failed to delete appointment:', err);
+    }
+  }
+  return true;
 }
 
 export function getBookedSlotsForDate(date: string): string[] {
