@@ -6,25 +6,25 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code');
   const error = searchParams.get('error');
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const origin = request.nextUrl.origin;
+  const redirectUri = `${origin}/api/auth/google/callback`;
 
   if (error || !code) {
     return NextResponse.redirect(
-      `${appUrl}/appointment?google_error=${encodeURIComponent(
+      `${origin}/appointment?google_error=${encodeURIComponent(
         error || 'Authorization was cancelled or code was missing.'
       )}`
     );
   }
 
   try {
-    await exchangeCodeForTokens(code);
-    return NextResponse.redirect(`${appUrl}/appointment?google_connected=true`);
+    await exchangeCodeForTokens(code, redirectUri);
+    return NextResponse.redirect(`${origin}/appointment?google_connected=true`);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to exchange token';
     console.error('Google OAuth callback error:', err);
     return NextResponse.redirect(
-      `${appUrl}/appointment?google_error=${encodeURIComponent(message)}`
+      `${origin}/appointment?google_error=${encodeURIComponent(message)}`
     );
   }
 }
-

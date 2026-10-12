@@ -68,12 +68,6 @@ export default function AppointmentForm() {
   } | null>(null);
   const [googleMessage, setGoogleMessage] = useState<string | null>(null);
 
-  // Setup modal state
-  const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
-  const [setupClientId, setSetupClientId] = useState('');
-  const [setupClientSecret, setSetupClientSecret] = useState('');
-  const [isSavingConfig, setIsSavingConfig] = useState(false);
-
   const successBoxRef = useRef<HTMLDivElement>(null);
   const slotSectionRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -255,48 +249,6 @@ export default function AppointmentForm() {
     }
   }, [formData.date, isSunday]);
 
-  const handleConnectClick = (e: React.MouseEvent) => {
-    if (!googleStatus?.hasConfig) {
-      e.preventDefault();
-      setIsSetupModalOpen(true);
-    }
-  };
-
-  const handleSaveGoogleConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!setupClientId.trim() || !setupClientSecret.trim()) {
-      alert('Please provide both Client ID and Client Secret.');
-      return;
-    }
-
-    setIsSavingConfig(true);
-    try {
-      const res = await fetch('/api/auth/google/configure', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: setupClientId.trim(),
-          clientSecret: setupClientSecret.trim(),
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || 'Failed to save configuration');
-        setIsSavingConfig(false);
-        return;
-      }
-
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
-      }
-    } catch (err) {
-      console.error('Error configuring Google OAuth:', err);
-      alert('Failed to save configuration. Please try again.');
-      setIsSavingConfig(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -415,8 +367,8 @@ export default function AppointmentForm() {
         {!googleStatus?.connected && (
           <a
             href="/api/auth/google"
-            onClick={handleConnectClick}
             className="btn-connect-google"
+            title="Authenticate doctor account to enable Google Calendar & Meet"
           >
             Connect Google Calendar (1-Click)
           </a>
@@ -521,112 +473,7 @@ export default function AppointmentForm() {
         </div>
       )}
 
-      {/* Setup Modal if Google Cloud credentials are not set */}
-      {isSetupModalOpen && (
-        <div className="modal-backdrop">
-          <div className="modal-content">
-            <div className="modal-head">
-              <h3>Connect Google Calendar for shivrajrbabar@gmail.com</h3>
-              <button
-                type="button"
-                className="modal-close"
-                onClick={() => setIsSetupModalOpen(false)}
-                aria-label="Close"
-              >
-                &times;
-              </button>
-            </div>
 
-            <p style={{ fontSize: '14.5px', marginBottom: '16px', color: 'var(--muted)' }}>
-              To allow this portal to automatically add events and Google Meet links to your Google
-              Calendar, enter your Google OAuth credentials from the Google Cloud Console:
-            </p>
-
-            <div className="modal-step">
-              <strong>Quick 2-Minute Setup:</strong>
-              <ol style={{ paddingLeft: '20px', marginTop: '6px', lineHeight: '1.6' }}>
-                <li>
-                  Go to{' '}
-                  <a
-                    href="https://console.cloud.google.com/apis/credentials"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ color: 'var(--link)', textDecoration: 'underline' }}
-                  >
-                    Google Cloud Console &rarr; Credentials
-                  </a>
-                </li>
-                <li>Enable the <strong>Google Calendar API</strong>.</li>
-                <li>
-                  Create an <strong>OAuth Client ID</strong> (Web Application) with redirect URI:
-                  <br />
-                  <code>http://localhost:3000/api/auth/google/callback</code>
-                </li>
-                <li>Paste the Client ID and Secret below:</li>
-              </ol>
-            </div>
-
-            <form onSubmit={handleSaveGoogleConfig}>
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '6px' }}>
-                  Google Client ID
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 123456789-xxxx.apps.googleusercontent.com"
-                  value={setupClientId}
-                  onChange={(e) => setSetupClientId(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid #bdd0d8',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                  }}
-                  required
-                />
-              </div>
-
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '6px' }}>
-                  Google Client Secret
-                </label>
-                <input
-                  type="password"
-                  placeholder="GOCSPX-xxxx..."
-                  value={setupClientSecret}
-                  onChange={(e) => setSetupClientSecret(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid #bdd0d8',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                  }}
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  className="btn-outline"
-                  onClick={() => setIsSetupModalOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-small"
-                  disabled={isSavingConfig}
-                >
-                  {isSavingConfig ? 'Connecting...' : 'Save & Connect Google'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       <div className="form-panel">
         <div className="form-heading">

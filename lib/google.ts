@@ -13,10 +13,17 @@ const SCOPES = [
   'https://www.googleapis.com/auth/calendar',
 ];
 
-export function getOAuth2Client() {
+export function getOAuth2Client(customRedirectUri?: string) {
   const config = getGoogleConfig();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  const redirectUri = `${appUrl}/api/auth/google/callback`;
+  let defaultAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!defaultAppUrl) {
+    defaultAppUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'http://localhost:3000';
+  }
+  const redirectUri = customRedirectUri || `${defaultAppUrl}/api/auth/google/callback`;
 
   if (!config?.clientId || !config?.clientSecret) {
     return null;
@@ -42,8 +49,8 @@ export function getOAuth2Client() {
   return oauth2Client;
 }
 
-export function getGoogleAuthUrl(): string | null {
-  const oauth2Client = getOAuth2Client();
+export function getGoogleAuthUrl(customRedirectUri?: string): string | null {
+  const oauth2Client = getOAuth2Client(customRedirectUri);
   if (!oauth2Client) return null;
 
   return oauth2Client.generateAuthUrl({
@@ -54,8 +61,8 @@ export function getGoogleAuthUrl(): string | null {
   });
 }
 
-export async function exchangeCodeForTokens(code: string) {
-  const oauth2Client = getOAuth2Client();
+export async function exchangeCodeForTokens(code: string, customRedirectUri?: string) {
+  const oauth2Client = getOAuth2Client(customRedirectUri);
   if (!oauth2Client) {
     throw new Error('Google OAuth credentials not configured in environment.');
   }
