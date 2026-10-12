@@ -85,8 +85,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const dateObj = new Date(`${date}T00:00:00+05:30`);
-    if (isNaN(dateObj.getTime()) || dateObj.getDay() === 0) {
+    const dateParts = date.split('-').map(Number);
+    if (dateParts.length !== 3 || dateParts.some(isNaN)) {
+      return NextResponse.json(
+        { error: 'Invalid date format. Expected YYYY-MM-DD.' },
+        { status: 400 }
+      );
+    }
+    const [year, month, day] = dateParts;
+    const dateUtc = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+    if (isNaN(dateUtc.getTime()) || dateUtc.getUTCDay() === 0) {
       return NextResponse.json(
         { error: 'Appointments cannot be booked on Sundays as clinic is closed.' },
         { status: 400 }
@@ -94,11 +102,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Appointments can only be booked from tomorrow onwards (in Asia/Kolkata timezone)
-    const nowIst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-    nowIst.setDate(nowIst.getDate() + 1);
-    const tomorrowIso = `${nowIst.getFullYear()}-${String(nowIst.getMonth() + 1).padStart(2, '0')}-${String(
-      nowIst.getDate()
-    ).padStart(2, '0')}`;
+    const now = new Date();
+    const istToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(now);
+    const [ty, tm, td] = istToday.split('-').map(Number);
+    const tomorrowUtc = new Date(Date.UTC(ty, tm - 1, td + 1, 12, 0, 0));
+    const tomorrowIso = tomorrowUtc.toISOString().slice(0, 10);
 
     if (date < tomorrowIso) {
       return NextResponse.json(
