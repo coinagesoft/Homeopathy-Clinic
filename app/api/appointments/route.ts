@@ -124,6 +124,7 @@ export async function POST(request: NextRequest) {
 
     let meetLink = '';
     let googleEventId = '';
+    let calendarError = '';
     const googleConnected = isGoogleConnected();
 
     if (googleConnected) {
@@ -135,6 +136,7 @@ export async function POST(request: NextRequest) {
         newAppointment.googleEventId = googleEventId;
       } catch (calError) {
         console.error('Google Calendar event creation failed:', calError);
+        calendarError = calError instanceof Error ? calError.message : 'Calendar sync failed';
         // Fallback meet link if Google Calendar call throws an error
         meetLink = `https://meet.google.com/lookup/aarav-${appointmentId.slice(0, 8)}`;
         newAppointment.meetLink = meetLink;
@@ -148,6 +150,7 @@ export async function POST(request: NextRequest) {
     saveAppointment(newAppointment);
 
     const googleCalendarUrl = generateGoogleCalendarUrl(newAppointment);
+    const eventCreated = Boolean(googleEventId);
 
     return NextResponse.json(
       {
@@ -155,10 +158,13 @@ export async function POST(request: NextRequest) {
         appointment: newAppointment,
         meetLink,
         googleCalendarUrl,
-        googleConnected,
+        googleConnected: eventCreated,
         doctorEmail: DOCTOR_EMAIL,
-        message: googleConnected
+        calendarError: calendarError || undefined,
+        message: eventCreated
           ? `Appointment scheduled and Google Meet link generated! Event added to ${DOCTOR_EMAIL} and ${newAppointment.email}.`
+          : calendarError
+          ? `Appointment booked! Google Calendar sync note: ${calendarError}. Use the button below to add to your calendar.`
           : `Appointment booked! Google Calendar is not yet authorized for ${DOCTOR_EMAIL}. Use the button below to add to calendar.`,
       },
       { status: 201 }

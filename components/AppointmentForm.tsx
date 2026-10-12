@@ -37,6 +37,7 @@ interface ConfirmedBooking {
   googleCalendarUrl?: string;
   googleConnected?: boolean;
   doctorEmail?: string;
+  calendarError?: string;
 }
 
 export default function AppointmentForm() {
@@ -416,8 +417,9 @@ export default function AppointmentForm() {
               </div>
             ) : (
               <div className="notice-warning">
-                Google Calendar background sync is not yet linked. Use the button below to add
-                this appointment directly to your Google Calendar now with one click.
+                {confirmedBooking.calendarError
+                  ? `Google Calendar Sync Notice: ${confirmedBooking.calendarError}. Please add this appointment to your calendar using the button below:`
+                  : 'Google Calendar background sync is not yet linked. Use the button below to add this appointment directly to your Google Calendar now with one click.'}
               </div>
             )}
 
