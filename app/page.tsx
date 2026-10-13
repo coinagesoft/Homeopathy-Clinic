@@ -1,10 +1,12 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import TestimonialsCarousel from '@/components/TestimonialsCarousel';
+import NewsCarousel from '@/components/NewsCarousel';
 
 export const metadata: Metadata = {
-  title: 'Dr. Aarav Homeopathy Clinic, Pune',
-  description: 'Personalised homeopathic consultations with Dr. Aarav Mehta in Pune.',
+  title: 'Dr. Aarav Homeopathy Clinic | Classical Homeopathy in Pune',
+  description: 'Unhurried, root-cause constitutional homeopathic consultations with Dr. Aarav Mehta (BHMS, MD) in Pune & global telehealth.',
 };
 
 export default function HomePage() {
@@ -23,20 +25,20 @@ export default function HomePage() {
         <div className="container meditro-hero-grid">
           <div className="meditro-hero-copy">
             <span className="meditro-badge-blue">
-              We Provide All Health Care Solution
+              Classical Constitutional Homeopathy
             </span>
             <h1>
-              Protect Your Health And Take Care Of Your Health
+              Protect Your Health With Root-Cause Healing
             </h1>
             <p className="meditro-hero-lead">
-              Individual homeopathic consultations with Dr. Aarav Mehta (BHMS, MD) built around your symptoms, health history, and everyday routine in Pune.
+              Unhurried, personal homeopathic consultations with Dr. Aarav Mehta (BHMS, MD). Gentle, lasting relief for chronic skin, allergy, migraine, gut, and lifestyle conditions in Pune &amp; worldwide.
             </p>
             <div className="meditro-hero-actions">
               <Link href="/appointment" className="btn-meditro-orange">
                 Book Appointment
               </Link>
-              <Link href="/about" className="btn-meditro-outline">
-                Read More
+              <Link href="/treatments" className="btn-meditro-outline">
+                Our Treatments
               </Link>
             </div>
           </div>
@@ -71,7 +73,7 @@ export default function HomePage() {
       </section>
 
       {/* =========================================================
-          2. ABOUT US SECTION (2x2 Collage + 4 Feature Icon Pills)
+          2. ABOUT US SECTION (Elaborated Profile + Experience)
          ========================================================= */}
       <section className="meditro-section meditro-about">
         <span className="deco-shape deco-about-square-left" aria-hidden="true"></span>
@@ -108,18 +110,24 @@ export default function HomePage() {
               />
             </div>
             <div className="collage-item collage-exp-card">
-              <strong>10+</strong>
-              <span>Year Experience</span>
+              <strong>15+</strong>
+              <span>Years Experience</span>
             </div>
             <span className="collage-center-diamond" aria-hidden="true"></span>
           </div>
 
-          {/* Right: About Copy & 4 Feature Pills */}
+          {/* Right: Elaborated Profile Summary */}
           <div className="about-content-wrap">
-            <span className="meditro-badge-orange">About Us</span>
-            <h2>The Great Place Of Homeopathic Medical Center</h2>
+            <span className="meditro-badge-orange">About Dr. Aarav Mehta</span>
+            <h2>Experienced Care, Clearly Explained</h2>
+            <p className="credential-pill">
+              BHMS (Gold Medalist), MD (Homeopathy) &bull; 15+ Years &bull; 20,000+ Consultations
+            </p>
             <p>
-              At Dr. Aarav Homeopathy Clinic, every consultation starts with understanding the person behind the symptoms. We take unhurried time to discuss your concerns, medical history, sleep, lifestyle, and expectations for clear, lasting care.
+              Dr. Aarav Mehta is a senior classical homeopathic physician in Pune with over 15 years of dedicated clinical practice. Graduating as a Gold Medalist from Maharashtra University of Health Sciences, he has successfully treated chronic skin conditions, respiratory allergies, digestive disorders, and pediatric ailments.
+            </p>
+            <p style={{ marginTop: '10px' }}>
+              His consultations are deliberately unhurried (30 to 45 minutes). He examines your medical history, sleep, lifestyle, thermal traits, and emotional stress to formulate a pure, non-steroidal constitutional prescription.
             </p>
 
             <div className="about-features-grid">
@@ -129,7 +137,7 @@ export default function HomePage() {
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                   </svg>
                 </span>
-                <strong>Individualised Care</strong>
+                <strong>Constitutional Care</strong>
               </div>
 
               <div className="about-feature-pill">
@@ -140,7 +148,7 @@ export default function HomePage() {
                     <polyline points="17 11 19 13 23 9" />
                   </svg>
                 </span>
-                <strong>Qualified Doctors</strong>
+                <strong>100% Steroid-Free</strong>
               </div>
 
               <div className="about-feature-pill">
@@ -149,7 +157,7 @@ export default function HomePage() {
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                   </svg>
                 </span>
-                <strong>Best Professionals</strong>
+                <strong>German-Grade Remedies</strong>
               </div>
 
               <div className="about-feature-pill">
@@ -161,13 +169,18 @@ export default function HomePage() {
                     <path d="M19 5 9 15l-4 1 1-4L16 2z" />
                   </svg>
                 </span>
-                <strong>Medical Treatment</strong>
+                <strong>Global Telehealth</strong>
               </div>
             </div>
 
-            <Link href="/about" className="btn-meditro-blue">
-              Read More
-            </Link>
+            <div className="about-actions-group">
+              <Link href="/about" className="btn-meditro-blue">
+                Read Full Doctor Profile &rarr;
+              </Link>
+              {/* <Link href="/appointment" className="btn-meditro-orange">
+                Book Visit
+              </Link> */}
+            </div>
           </div>
         </div>
       </section>
@@ -179,7 +192,7 @@ export default function HomePage() {
         <div className="container">
           <div className="meditro-section-header">
             <span className="meditro-badge-orange">Working Process</span>
-            <h2>How we works?</h2>
+            <h2>How Our Clinical Care Works</h2>
           </div>
 
           <div className="process-cards-grid">
@@ -188,10 +201,10 @@ export default function HomePage() {
               <div className="process-num">01</div>
               <h3>Make Appointment</h3>
               <p>
-                Select your preferred date and available consultation slot online for an unhurried one-to-one visit.
+                Choose your preferred date and available consultation slot online for an unhurried one-to-one clinic or Google Meet visit.
               </p>
               <Link href="/appointment" className="btn-process-link">
-                <span>View More</span>
+                <span>Book Slot</span>
                 <span className="process-arrow-box">&rsaquo;</span>
               </Link>
             </div>
@@ -199,12 +212,12 @@ export default function HomePage() {
             {/* Step 02 (Active Orange Center Card) */}
             <div className="process-card process-card-active">
               <div className="process-num">02</div>
-              <h3>Take Treatment</h3>
+              <h3>In-Depth Case Study</h3>
               <p>
-                Discuss your symptoms, medical history, sleep, and daily routine with Dr. Aarav Mehta for constitutional care.
+                Spend 30–45 minutes discussing your symptoms, medical history, diet, sleep, and lifestyle triggers with Dr. Aarav Mehta.
               </p>
               <Link href="/about" className="btn-process-link">
-                <span>View More</span>
+                <span>Our Philosophy</span>
                 <span className="process-arrow-box">&rsaquo;</span>
               </Link>
             </div>
@@ -212,12 +225,12 @@ export default function HomePage() {
             {/* Step 03 */}
             <div className="process-card">
               <div className="process-num">03</div>
-              <h3>Registration</h3>
+              <h3>Personalized Recovery</h3>
               <p>
-                Receive your personalised homeopathic treatment plan with Google Calendar reminders and planned follow-ups.
+                Receive authentic German-grade constitutional medicines with dietary guidance, calendar reminders, and planned follow-ups.
               </p>
-              <Link href="/appointment" className="btn-process-link">
-                <span>View More</span>
+              <Link href="/treatments" className="btn-process-link">
+                <span>View Treatments</span>
                 <span className="process-arrow-box">&rsaquo;</span>
               </Link>
             </div>
@@ -226,7 +239,7 @@ export default function HomePage() {
       </section>
 
       {/* =========================================================
-          4. SERVICES SECTION ("We Cover A Big Variety Of Medical Services")
+          4. TREATMENTS SECTION (Renamed from Services & linked to /treatments)
          ========================================================= */}
       <section className="meditro-section meditro-services" id="treatments">
         <div className="services-blue-backdrop" aria-hidden="true"></div>
@@ -234,17 +247,22 @@ export default function HomePage() {
         <div className="container meditro-services-grid">
           {/* Left Copy */}
           <div className="services-intro-col">
-            <span className="meditro-badge-orange">Services</span>
-            <h2>We Cover A Big Variety Of Medical Services</h2>
+            <span className="meditro-badge-orange">Our Treatments</span>
+            <h2>Specialized Classical Homeopathic Treatments</h2>
             <p>
-              We provide personalised constitutional homeopathic treatment for chronic and everyday health concerns, tailored to each patient&apos;s constitution.
+              We provide individualized constitutional treatment for chronic and complex health conditions, addressing the root pathology rather than suppressing external symptoms.
             </p>
-            <Link href="/appointment" className="btn-meditro-orange">
-              All Services
-            </Link>
+            <div className="treatment-intro-actions">
+              <Link href="/treatments" className="btn-meditro-orange">
+                Explore All 8 Treatments &rarr;
+              </Link>
+              {/* <Link href="/appointment" className="btn-treatment-consult">
+                Book Consultation
+              </Link> */}
+            </div>
           </div>
 
-          {/* Right Cards overlapping the Royal-Blue Backdrop */}
+          {/* Right Treatment Cards */}
           <div className="services-cards-row">
             <article className="meditro-service-card">
               <div className="service-icon-frame">
@@ -254,10 +272,11 @@ export default function HomePage() {
                   <circle cx="20" cy="10" r="2" />
                 </svg>
               </div>
-              <h3>Diagnostics &amp; Allergies</h3>
-              <p>Constitutional care for recurring sneezing, nasal congestion, asthma, and seasonal allergies.</p>
-              <Link href="/appointment" className="btn-service-more">
-                View More
+              <span className="card-cat-badge">Skin &amp; Hair</span>
+              <h3>Chronic Skin &amp; Eczema</h3>
+              <p>Non-steroidal constitutional care for severe eczema, psoriasis plaques, chronic urticaria, and cystic acne.</p>
+              <Link href="/treatments#skin-disorders" className="btn-service-more">
+                Treatment Details &rarr;
               </Link>
             </article>
 
@@ -269,10 +288,11 @@ export default function HomePage() {
                   <path d="M19 5 9 15l-4 1 1-4L16 2z" />
                 </svg>
               </div>
-              <h3>Migraine &amp; Treatment</h3>
-              <p>Detailed review of headache patterns, digestive acidity, skin rashes, and daily lifestyle triggers.</p>
-              <Link href="/appointment" className="btn-service-more">
-                View More
+              <span className="card-cat-badge">Respiratory</span>
+              <h3>Allergies &amp; Asthma</h3>
+              <p>Desensitizing airway mucous membranes to eliminate morning sneezing fits, sinus headaches, and inhaler dependence.</p>
+              <Link href="/treatments#respiratory-allergies" className="btn-service-more">
+                Treatment Details &rarr;
               </Link>
             </article>
 
@@ -284,10 +304,11 @@ export default function HomePage() {
                   <line x1="9" y1="12" x2="15" y2="12" />
                 </svg>
               </div>
-              <h3>Chronic &amp; Joint Care</h3>
-              <p>Unhurried assessment for joint stiffness, muscle aches, sleep disturbances, and stress recovery.</p>
-              <Link href="/appointment" className="btn-service-more">
-                View More
+              <span className="card-cat-badge">Digestion</span>
+              <h3>IBS, Gut &amp; Acidity</h3>
+              <p>Restoring gut-brain harmony, soothing acid reflux, and healing erratic bowel movements without antacid reliance.</p>
+              <Link href="/treatments#digestive-gut-health" className="btn-service-more">
+                Treatment Details &rarr;
               </Link>
             </article>
           </div>
@@ -295,7 +316,7 @@ export default function HomePage() {
       </section>
 
       {/* =========================================================
-          6. TESTIMONIALS SECTION (Hexagon Orbit + Orange Quote Card)
+          5. TESTIMONIALS SECTION (Multiple Reviews + Auto-Scroll)
          ========================================================= */}
       <section className="meditro-section meditro-testimonials" id="testimonials">
         <span className="deco-shape deco-testi-plus" aria-hidden="true">+</span>
@@ -303,138 +324,38 @@ export default function HomePage() {
 
         <div className="container">
           <div className="meditro-section-header">
-            <span className="meditro-badge-orange">Testimonial</span>
-            <h2>See What Are The Patients Saying About us</h2>
+            <span className="meditro-badge-orange">Patient Testimonials</span>
+            <h2>See What Patients Say About Our Care</h2>
+            <p className="section-lead-p">
+              Real recovery stories from individuals who achieved lasting relief through Dr. Aarav Mehta&apos;s constitutional care.
+            </p>
           </div>
 
-          <div className="testimonial-grid-meditro">
-            {/* Left: Hexagonal Patient Avatar Orbit */}
-            <div className="testimonial-orbit-wrap" aria-hidden="true">
-              <div className="orbit-dashed-ring"></div>
-              <div className="orbit-center-hex">
-                <span>5,000+</span>
-                <small>Happy Patients</small>
-              </div>
-              <div className="orbit-avatar pos-1">SR</div>
-              <div className="orbit-avatar pos-2">AK</div>
-              <div className="orbit-avatar pos-3">PD</div>
-              <div className="orbit-avatar pos-4">RM</div>
-              <div className="orbit-avatar pos-5">SV</div>
-              <div className="orbit-avatar pos-6">NK</div>
-            </div>
-
-            {/* Right: Orange Quote Card */}
-            <div className="testimonial-quote-col">
-              <div className="meditro-orange-quote-card">
-                <div className="quote-floating-badge" aria-hidden="true">
-                  &ldquo;
-                </div>
-                <p className="quote-card-text">
-                  Dr. Aarav Mehta takes the time to genuinely listen to every symptom and explain the treatment clearly. After months of recurring migraine and seasonal allergies, the constitutional homeopathic care made a remarkable difference in my daily health.
-                </p>
-                <div className="quote-card-footer">
-                  <div>
-                    <strong>Shivraj R. Babar</strong>
-                    <span>PATIENT &bull; PUNE</span>
-                  </div>
-                  <span className="quote-watermark" aria-hidden="true">
-                    &rdquo;
-                  </span>
-                </div>
-              </div>
-
-              <div className="quote-nav-arrows">
-                <Link href="/appointment" className="quote-arrow-btn" aria-label="Book consultation">
-                  &#x2190;
-                </Link>
-                <Link href="/appointment" className="quote-arrow-btn" aria-label="Next review">
-                  &#x2192;
-                </Link>
-              </div>
-            </div>
-          </div>
+          {/* Interactive Multi-Review Auto-Scroll Carousel */}
+          <TestimonialsCarousel />
         </div>
       </section>
 
       {/* =========================================================
-          7. LATEST NEWS / INSIGHTS SECTION ("Our Latest News")
+          6. LATEST NEWS & INSIGHTS (Auto-Scroll Carousel View)
          ========================================================= */}
-      <section className="meditro-section meditro-news">
+      <section className="meditro-section meditro-news" id="news">
         <div className="container">
           <div className="meditro-section-header">
-            <span className="meditro-badge-orange">Latest News</span>
-            <h2>Our Latest News</h2>
+            <span className="meditro-badge-orange">Clinical News &amp; Insights</span>
+            <h2>Our Latest Medical Articles &amp; Guides</h2>
+            <p className="section-lead-p">
+              Evidence-based health guidance and classical homeopathic insights written by Dr. Aarav Mehta.
+            </p>
           </div>
 
-          <div className="news-cards-grid">
-            <article className="meditro-news-card">
-              <div className="news-card-img">
-                <Image
-                  src="/assets/consultation-photo-clean.jpg"
-                  alt="Homeopathic consultation session"
-                  width={500}
-                  height={340}
-                  unoptimized
-                />
-              </div>
-              <div className="news-card-body">
-                <div className="news-meta-row">
-                  <span className="news-author">Dr. Aarav Mehta</span>
-                  <span className="news-date">21 July 2026</span>
-                </div>
-                <h3>How Constitutional Homeopathy Helps Manage Seasonal Allergies</h3>
-                <Link href="/appointment" className="btn-news-more">
-                  <span>Read More</span>
-                  <span className="news-arrow-box">&rsaquo;</span>
-                </Link>
-              </div>
-            </article>
+          {/* Interactive Auto-Scroll News Carousel Component */}
+          <NewsCarousel />
 
-            <article className="meditro-news-card">
-              <div className="news-card-img">
-                <Image
-                  src="/assets/dr-aarav-cropped.png"
-                  alt="Dr. Aarav Mehta clinical guidance"
-                  width={500}
-                  height={340}
-                  unoptimized
-                />
-              </div>
-              <div className="news-card-body">
-                <div className="news-meta-row">
-                  <span className="news-author">Dr. Aarav Mehta</span>
-                  <span className="news-date">19 July 2026</span>
-                </div>
-                <h3>Understanding Migraine Triggers: Sleep, Routine and Holistic Care</h3>
-                <Link href="/about" className="btn-news-more">
-                  <span>Read More</span>
-                  <span className="news-arrow-box">&rsaquo;</span>
-                </Link>
-              </div>
-            </article>
-
-            <article className="meditro-news-card">
-              <div className="news-card-img">
-                <Image
-                  src="/assets/consultation-photo-clean.jpg"
-                  alt="Patient-first clinical environment"
-                  width={500}
-                  height={340}
-                  unoptimized
-                />
-              </div>
-              <div className="news-card-body">
-                <div className="news-meta-row">
-                  <span className="news-author">Dr. Aarav Mehta</span>
-                  <span className="news-date">15 July 2026</span>
-                </div>
-                <h3>Why Unhurried One-to-One Consultations Lead to Better Health</h3>
-                <Link href="/appointment" className="btn-news-more">
-                  <span>Read More</span>
-                  <span className="news-arrow-box">&rsaquo;</span>
-                </Link>
-              </div>
-            </article>
+          <div className="news-browse-all-row">
+            <Link href="/news" className="btn-meditro-blue">
+              Browse All Clinical Articles &rarr;
+            </Link>
           </div>
         </div>
       </section>

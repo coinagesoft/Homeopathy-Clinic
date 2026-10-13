@@ -64,25 +64,26 @@ export default function Footer() {
             <div className="footer-title-wave" aria-hidden="true"></div>
             <ul>
               <li><Link href="/about">About Us</Link></li>
-              <li><Link href="/#treatments">Services</Link></li>
-              <li><Link href="/appointment">Booking</Link></li>
+              <li><Link href="/treatments">Our Treatments</Link></li>
+              <li><Link href="/news">News &amp; Insights</Link></li>
+              <li><Link href="/appointment">Book Appointment</Link></li>
               <li><Link href="/#process">How We Work</Link></li>
               <li><Link href="/#testimonials">Testimonials</Link></li>
               <li><Link href="/admin">Doctor Admin Portal</Link></li>
             </ul>
           </div>
 
-          {/* Column 3: Our Services */}
+          {/* Column 3: Our Treatments */}
           <div className="footer-col-links">
-            <h3 className="footer-col-title">Our Services</h3>
+            <h3 className="footer-col-title">Our Treatments</h3>
             <div className="footer-title-wave" aria-hidden="true"></div>
             <ul>
-              <li><Link href="/#treatments">Allergies &amp; Sinus</Link></li>
-              <li><Link href="/#treatments">Migraine &amp; Headaches</Link></li>
-              <li><Link href="/#treatments">Digestive Concerns</Link></li>
-              <li><Link href="/#treatments">Skin Treatments</Link></li>
-              <li><Link href="/#treatments">Joint &amp; Muscle Pain</Link></li>
-              <li><Link href="/#treatments">Stress &amp; Sleep Care</Link></li>
+              <li><Link href="/treatments#skin-disorders">Skin &amp; Eczema Care</Link></li>
+              <li><Link href="/treatments#respiratory-allergies">Allergies &amp; Asthma</Link></li>
+              <li><Link href="/treatments#digestive-gut-health">Digestive &amp; IBS</Link></li>
+              <li><Link href="/treatments#hair-alopecia-scalp">Hair Loss &amp; Alopecia</Link></li>
+              <li><Link href="/treatments#womens-health-pcod">Women&apos;s Health &amp; PCOD</Link></li>
+              <li><Link href="/treatments#joint-arthritis-spine">Joints &amp; Arthritis</Link></li>
             </ul>
           </div>
 

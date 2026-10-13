@@ -97,13 +97,21 @@ export default function Header() {
               </Link>
             </li>
             <li>
-              <Link href="/#treatments" onClick={closeMenu}>
-                Services
+              <Link
+                href="/treatments"
+                className={pathname === '/treatments' ? 'active' : ''}
+                onClick={closeMenu}
+              >
+                Treatments
               </Link>
             </li>
             <li>
-              <Link href="/#process" onClick={closeMenu}>
-                How It Works
+              <Link
+                href="/news"
+                className={pathname?.startsWith('/news') ? 'active' : ''}
+                onClick={closeMenu}
+              >
+                News
               </Link>
             </li>
             <li>
