@@ -40,6 +40,9 @@
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 90px;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 body {
@@ -50,7 +53,10 @@ body {
   background: var(--white);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  width: 100%;
+  max-width: 100vw;
   overflow-x: hidden;
+  position: relative;
 }
 
 img {
@@ -1715,10 +1721,11 @@ p {
 
 .cal-weekdays {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 8px;
   text-align: center;
+  width: 100%;
 }
 
 .cal-weekday {
@@ -1732,6 +1739,8 @@ p {
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .cal-weekday-sun,
@@ -1746,13 +1755,16 @@ p {
 
 .cal-days-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
+  width: 100%;
 }
 
 .cal-day-cell {
   position: relative;
   min-height: 60px;
+  min-width: 0;
+  overflow: hidden;
   padding: 6px 4px;
   border-radius: 12px;
   border: 1.5px solid #E2E5F8;
@@ -2275,6 +2287,9 @@ p {
   background: linear-gradient(180deg, #F3F4FF 0%, #F9FAFF 100%);
   min-height: 100vh;
   padding-bottom: 64px;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 .admin-topbar {
@@ -3333,6 +3348,7 @@ p {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 16px 18px;
+  min-width: 0;
 }
 
 .timeline-card-head {
@@ -3340,6 +3356,14 @@ p {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 8px;
+}
+
+.timeline-info-col {
+  min-width: 0;
+}
+
+.timeline-date {
+  white-space: nowrap;
 }
 
 .timeline-date strong {
@@ -3358,6 +3382,7 @@ p {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .timeline-notes-box {
@@ -3495,6 +3520,9 @@ p {
   border-radius: 20px;
   padding: 26px;
   box-shadow: var(--shadow-soft);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .card-heading {
@@ -3849,10 +3877,11 @@ p {
 
 .tdp-weekdays {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 4px;
   text-align: center;
   margin-bottom: 6px;
+  width: 100%;
 }
 
 .tdp-weekday {
@@ -3862,6 +3891,8 @@ p {
   padding: 4px 2px;
   text-transform: uppercase;
   letter-spacing: 0.4px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .tdp-weekday.sunday {
@@ -3870,13 +3901,16 @@ p {
 
 .tdp-days-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 4px;
+  width: 100%;
 }
 
 .tdp-day-cell {
   position: relative;
   height: 42px;
+  min-width: 0;
+  overflow: hidden;
   border-radius: 10px;
   border: 1px solid transparent;
   background: #FAFBFF;
@@ -4585,7 +4619,7 @@ p {
 }
 
 /* =========================================================================
-   RESPONSIVE BREAKPOINTS
+   RESPONSIVE BREAKPOINTS (Enhanced for 100% Mobile Fluidity & MediTro Polish)
    ========================================================================= */
 @media (max-width: 1040px) {
   .header-phone-item {
@@ -4594,16 +4628,37 @@ p {
   .meditro-services-grid {
     grid-template-columns: 1fr;
   }
-  .services-blue-backdrop {
-    width: 92%;
-    top: 240px;
-  }
   .booking-grid {
     grid-template-columns: 1fr;
+    gap: 36px;
   }
 }
 
 @media (max-width: 900px) {
+  /* 1. Eliminate floating decorative elements from obscuring headings/badges on mobile */
+  .deco-shape {
+    display: none !important;
+  }
+
+  /* 2. Hide awkward backdrop in services that creates weird vertical bands on mobile */
+  .services-blue-backdrop {
+    display: none !important;
+  }
+
+  /* 3. Header & Mobile Navigation */
+  .header-inner {
+    min-height: 72px;
+  }
+  .brand-text-wrap strong {
+    font-size: 21px;
+  }
+  .brand-text-wrap small {
+    font-size: 11px;
+  }
+  .brand-logo-icon {
+    width: 40px;
+    height: 40px;
+  }
   .menu-toggle {
     display: block;
   }
@@ -4620,6 +4675,7 @@ p {
     gap: 14px;
     padding: 18px 24px 24px;
     box-shadow: 0 15px 30px rgba(31, 34, 120, 0.1);
+    z-index: 50;
   }
   .main-nav.open {
     display: flex;
@@ -4640,23 +4696,78 @@ p {
   .btn-meditro-nav {
     justify-content: space-between;
   }
+
+  /* 4. Hero Section */
+  .meditro-hero {
+    padding: 36px 0 76px;
+    overflow: hidden;
+  }
   .meditro-hero-grid,
   .meditro-about-grid,
   .booking-showcase-grid,
   .testimonial-grid-meditro,
   .footer-grid-meditro {
     grid-template-columns: 1fr;
+    gap: 36px;
+  }
+  .meditro-hero-copy {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .meditro-hero-copy h1 {
+    max-width: 100%;
+    font-size: clamp(28px, 6.5vw, 42px);
+  }
+  .meditro-hero-lead {
+    max-width: 100%;
+    font-size: 15.5px;
+    margin-top: 14px;
+  }
+  .meditro-hero-actions {
+    justify-content: center;
+  }
+  .hero-organic-backing {
+    width: 100%;
+    max-width: 360px;
+    margin-inline: auto;
+  }
+
+  /* 5. Services Section */
+  .meditro-services {
+    padding: 56px 0;
+  }
+  .services-intro-col {
+    text-align: center;
+  }
+  .services-intro-col p {
+    margin-inline: auto;
   }
   .process-cards-grid,
   .services-cards-row,
   .news-cards-grid {
     grid-template-columns: 1fr;
+    gap: 20px;
   }
   .process-card-active {
     transform: none;
   }
   .booking-showcase-box {
-    padding: 36px 24px;
+    padding: 32px 20px;
+  }
+
+  /* 6. Page Banners */
+  .meditro-page-banner {
+    padding: 44px 0 80px;
+  }
+  .meditro-banner-inner h1 {
+    font-size: clamp(26px, 6vw, 36px);
+  }
+
+  /* 7. Booking & Admin Grids */
+  .form-panel {
+    padding: 28px 22px;
   }
   .admin-kpi-grid {
     grid-template-columns: 1fr 1fr;
@@ -4665,34 +4776,513 @@ p {
   .availability-layout-grid,
   .patients-grid,
   .payment-methods-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 640px) {
+  /* Container margin adjustments for mobile screens */
   .container {
-    width: min(calc(100% - 32px), var(--max));
+    width: min(calc(100% - 24px), var(--max));
   }
   .about-features-grid,
   .form-grid {
     grid-template-columns: 1fr;
+    gap: 14px;
   }
   .slot-grid {
     grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
+
+  /* Booking Form Card on Mobile */
+  .form-panel {
+    padding: 20px 14px;
+    border-radius: 18px;
+    border-width: 1.5px;
+  }
+  .form-heading h2 {
+    font-size: 22px;
+  }
+  .form-heading p {
+    font-size: 13.5px;
+  }
+
+  /* Calendar Widget Mobile Responsive Sizing (Prevents 100% of overflow!) */
+  .custom-calendar-widget {
+    padding: 14px 10px;
+    border-radius: 14px;
+  }
+  .cal-header {
+    padding: 8px 10px;
+    margin-bottom: 12px;
+  }
+  .cal-month-name {
+    font-size: 18px;
+  }
+  .cal-year-num {
+    font-size: 14.5px;
+  }
+  .cal-nav-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+  .cal-weekdays {
+    gap: 3px;
+    margin-bottom: 6px;
+  }
+  .cal-weekday {
+    font-size: 11px;
+    padding: 5px 1px;
+    border-radius: 6px;
+  }
+  .cal-sun-tag {
+    font-size: 8px;
+  }
+  .cal-days-grid {
+    gap: 3px;
+  }
+  .cal-day-cell {
+    min-height: 46px;
+    padding: 4px 1px;
+    border-radius: 9px;
+  }
+  .cal-day-num {
+    font-size: 13.5px;
+  }
+  .cal-today-badge,
+  .cal-closed-pill,
+  .cal-leave-pill {
+    font-size: 8px;
+    padding: 1px 3px;
+    border-radius: 3px;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .cal-legend {
+    gap: 8px 12px;
+    font-size: 11px;
+    margin-top: 12px;
+    padding-top: 10px;
+  }
+  .cal-selected-banner {
+    padding: 10px 12px;
+    margin-top: 12px;
+    border-radius: 10px;
+    gap: 8px;
+  }
+  .cal-banner-text strong {
+    font-size: 10.5px;
+  }
+  .cal-banner-text span {
+    font-size: 14px;
+  }
+
+  /* Stepper on Mobile */
+  .booking-stepper {
+    padding: 12px 14px;
+    gap: 8px;
+  }
+  .booking-step-circle {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+  .booking-step-text strong {
+    font-size: 13.5px;
+  }
+  .booking-step-label {
+    font-size: 10px;
+  }
+
+  /* Payment Summary & Fee Cards on Mobile */
+  .payment-summary-card {
+    padding: 18px 16px;
+  }
+  .payment-summary-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .payment-fee-card {
+    padding: 20px 16px;
+  }
+  .payment-fee-total strong {
+    font-size: 24px;
+  }
+
+  /* Admin Topbar on Mobile */
   .admin-topbar-inner {
+    width: min(calc(100% - 20px), var(--max));
     flex-direction: column;
     align-items: flex-start;
+    gap: 12px;
   }
   .admin-topbar-right {
     width: 100%;
     flex-wrap: wrap;
+    gap: 8px;
+  }
+  .btn-quick-leave,
+  .btn-portal-view,
+  .btn-logout {
+    font-size: 12.5px;
+    padding: 8px 12px;
+  }
+  .admin-main-container {
+    width: min(calc(100% - 20px), var(--max));
+    padding-top: 18px;
   }
   .admin-kpi-grid {
     grid-template-columns: 1fr;
   }
+  .nav-tabs-container {
+    padding-inline: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-tab-btn {
+    padding: 12px 14px;
+    font-size: 13px;
+    gap: 6px;
+  }
+  .card-table-title-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 14px 16px;
+  }
+
+  /* Patient History Modal Mobile Optimization */
+  .admin-modal-overlay {
+    padding: 10px;
+  }
+  .admin-modal-container {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 18px;
+  }
+  .modal-header {
+    padding: 14px 16px;
+  }
+  .modal-patient-info {
+    gap: 10px;
+    min-width: 0;
+  }
+  .patient-avatar-circle {
+    width: 38px;
+    height: 38px;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .modal-patient-name {
+    font-size: 17px;
+  }
+  .modal-patient-sub {
+    font-size: 11.5px;
+    line-height: 1.35;
+    word-break: break-word;
+  }
   .modal-kpi-banner {
+    padding: 10px 14px;
     grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .modal-kpi-item span {
+    font-size: 10px;
+  }
+  .modal-kpi-item strong {
+    font-size: 13.5px;
+  }
+  .modal-content-body {
+    padding: 16px 12px;
+  }
+  .timeline-entry {
+    gap: 10px;
+  }
+  .point-number {
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .timeline-card {
+    padding: 12px 14px;
+    border-radius: 12px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .timeline-card-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .timeline-info-col {
+    width: 100%;
+    min-width: 0;
+  }
+  .timeline-date {
+    white-space: nowrap;
+    font-size: 14px;
+  }
+  .timeline-date strong {
+    font-size: 14px;
+  }
+  .timeline-reason {
+    font-size: 13px;
+  }
+  .timeline-badges {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-start;
+    align-items: center;
+  }
+  .status-select,
+  .payment-pill {
+    font-size: 12px;
+  }
+  .timeline-notes-box {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+  .modal-footer {
+    padding: 12px 14px;
+  }
+  .btn-modal-close {
+    width: 100%;
+    text-align: center;
+    padding: 11px 16px;
+    font-size: 14px;
+  }
+
+  /* Doctor Availability Section Mobile Optimization */
+  .admin-availability-section {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+    gap: 16px;
+  }
+  .availability-layout-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 16px;
+    width: 100%;
+    max-width: 100%;
+  }
+  .availability-card {
+    padding: 18px 14px;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .card-heading {
+    font-size: 18px;
+  }
+  .card-subhead {
+    font-size: 12.5px;
+    margin-bottom: 14px;
+  }
+  .admin-info-banner {
+    padding: 14px 14px;
+    border-radius: 14px;
+    gap: 10px;
+  }
+  .admin-info-banner strong {
+    font-size: 14px;
+  }
+  .admin-info-banner p {
+    font-size: 12.5px;
+  }
+  .type-toggle-group {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+  .toggle-option {
+    width: 100%;
+    padding: 11px 12px;
+  }
+  .option-title {
+    font-size: 13px;
+  }
+  .option-desc {
+    font-size: 11px;
+  }
+  .slot-picker-group {
+    padding: 12px 10px;
+  }
+  .slot-chips-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .slot-chip {
+    padding: 6px 2px;
+    font-size: 11px;
+  }
+  .preset-tags-wrap {
+    gap: 5px;
+    margin-top: 6px;
+  }
+  .preset-tag-btn {
+    font-size: 11px;
+    padding: 4px 8px;
+    line-height: 1.3;
+  }
+  .btn-save-override {
+    width: 100%;
+    font-size: 14px;
+    padding: 13px 16px;
+    text-align: center;
+  }
+  .list-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .btn-refresh {
+    align-self: flex-start;
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+  .overrides-table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    display: block;
+    border-radius: 12px;
+  }
+  .overrides-table {
+    min-width: 520px;
+  }
+  .overrides-table th {
+    padding: 10px 10px;
+    font-size: 11px;
+  }
+  .overrides-table td {
+    padding: 10px 10px;
+    font-size: 12.5px;
+  }
+
+  /* Date Picker Mobile Polish */
+  .themed-datepicker-trigger {
+    padding: 9px 12px;
+    gap: 8px;
+  }
+  .trigger-icon-box {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+  .trigger-date-str {
+    font-size: 14.5px;
+  }
+  .trigger-relative-pill {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+  .trigger-date-sub {
+    font-size: 11px;
+  }
+  .trigger-action-pill {
+    display: none;
+  }
+  .themed-datepicker-popover {
+    left: 0;
+    right: 0;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding: 12px;
+    border-radius: 16px;
+  }
+  .tdp-month-name {
+    font-size: 17px;
+  }
+  .tdp-year-name {
+    font-size: 14px;
+  }
+  .tdp-shortcuts-bar {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+  .tdp-shortcut-chip {
+    font-size: 10.5px;
+    padding: 2px 7px;
+  }
+  .tdp-day-cell {
+    height: 38px;
+  }
+  .tdp-day-number {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra compact layout for smaller phone screens (iPhone SE, small Androids) */
+  .container {
+    width: min(calc(100% - 16px), var(--max));
+  }
+  .meditro-hero-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 10px;
+  }
+  .meditro-hero-actions .btn-meditro-orange,
+  .meditro-hero-actions .btn-meditro-outline {
+    width: 100%;
+    text-align: center;
+  }
+  .form-panel {
+    padding: 16px 10px;
+    border-radius: 16px;
+  }
+  .custom-calendar-widget {
+    padding: 10px 5px;
+    border-radius: 12px;
+  }
+  .cal-days-grid {
+    gap: 2.5px;
+  }
+  .cal-day-cell {
+    min-height: 42px;
+    padding: 2px 0;
+    border-radius: 7px;
+  }
+  .cal-day-num {
+    font-size: 13px;
+  }
+  .slot-btn {
+    padding: 10px 6px;
+    font-size: 13px;
+    min-height: 42px;
+  }
+  .payment-step-actions {
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+  .btn-back-step,
+  .btn-pay-razorpay {
+    width: 100%;
+    justify-content: center;
+  }
+  .clinic-card {
+    padding: 22px 16px;
+    border-radius: 18px;
+  }
+  .slot-chips-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .modal-kpi-banner {
+    grid-template-columns: 1fr;
   }
 }
 

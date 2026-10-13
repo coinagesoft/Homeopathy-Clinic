@@ -16,6 +16,23 @@ interface PatientHistoryModalProps {
   onUpdateStatus: (appointmentId: string, status: 'confirmed' | 'completed' | 'cancelled' | 'no-show') => Promise<void>;
 }
 
+function formatReadableDate(dateStr?: string) {
+  if (!dateStr) return '—';
+  try {
+    const parsed = new Date(`${dateStr}T00:00:00`);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    }
+  } catch {
+    // fallback
+  }
+  return dateStr;
+}
+
 export default function PatientHistoryModal({
   patient,
   onClose,
@@ -86,11 +103,11 @@ export default function PatientHistoryModal({
           </div>
           <div className="modal-kpi-item">
             <span>First Consultation</span>
-            <strong>{patient.appointments[patient.appointments.length - 1]?.date || '—'}</strong>
+            <strong>{formatReadableDate(patient.appointments[patient.appointments.length - 1]?.date)}</strong>
           </div>
           <div className="modal-kpi-item">
             <span>Latest Visit</span>
-            <strong>{patient.appointments[0]?.date || '—'}</strong>
+            <strong>{formatReadableDate(patient.appointments[0]?.date)}</strong>
           </div>
         </div>
 
@@ -110,9 +127,9 @@ export default function PatientHistoryModal({
 
                   <div className="timeline-card">
                     <div className="timeline-card-head">
-                      <div>
+                      <div className="timeline-info-col">
                         <div className="timeline-date">
-                          <strong>{appt.date}</strong> at <span>{appt.time}</span>
+                          <strong>{formatReadableDate(appt.date)}</strong> at <span>{appt.time}</span>
                         </div>
                         <div className="timeline-reason">{appt.reason}</div>
                       </div>
