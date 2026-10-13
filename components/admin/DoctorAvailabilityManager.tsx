@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { DoctorOverride } from '@/lib/availability';
+import ThemedDatePicker from './ThemedDatePicker';
 
 const ALL_SLOTS = [
   { value: '09:00', label: '9:00 AM' },
@@ -235,18 +236,16 @@ export default function DoctorAvailabilityManager({
           <p className="card-subhead">Specify dates or hours when Dr. Aarav will not take appointments.</p>
 
           <form onSubmit={handleSubmit} className="availability-form">
-            <div className="form-group">
-              <label htmlFor="override-date">Target Date</label>
-              <input
-                type="date"
-                id="override-date"
-                min={tomorrowIso}
+            <div className="form-group datepicker-form-group">
+              <ThemedDatePicker
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
-                className="admin-input"
+                onChange={setDate}
+                minDate={tomorrowIso}
+                label="Target Date"
+                existingOverrides={overrides}
+                disabled={isSubmitting}
               />
-              <span className="field-hint">Select tomorrow or any upcoming date</span>
+              <span className="field-hint">Select tomorrow or any upcoming date to block</span>
             </div>
 
             <div className="form-group">
