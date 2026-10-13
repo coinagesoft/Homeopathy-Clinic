@@ -26,12 +26,14 @@ const PRESET_REASONS = [
 
 interface DoctorAvailabilityManagerProps {
   overrides: DoctorOverride[];
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<void>;
+  onOverridesChange?: (nextOverrides: DoctorOverride[]) => void;
 }
 
 export default function DoctorAvailabilityManager({
   overrides,
   onRefresh,
+  onOverridesChange,
 }: DoctorAvailabilityManagerProps) {
   const tomorrowIso = React.useMemo(() => {
     const d = new Date();
@@ -46,6 +48,8 @@ export default function DoctorAvailabilityManager({
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null
   );
@@ -87,6 +91,7 @@ export default function DoctorAvailabilityManager({
       const res = await fetch('/api/availability', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
         body: JSON.stringify({
           date,
           type,
@@ -100,15 +105,18 @@ export default function DoctorAvailabilityManager({
         throw new Error(data.error || 'Failed to save availability');
       }
 
+      if (Array.isArray(data.overrides) && onOverridesChange) {
+        onOverridesChange(data.overrides);
+      }
+
       setFeedback({
         type: 'success',
         message: `Availability override successfully applied for ${date}. This date/slots are now blocked in the booking calendar.`,
       });
 
-      // Reset form
       setReason('');
       setSelectedSlots([]);
-      onRefresh();
+      await onRefresh();
     } catch (err: unknown) {
       setFeedback({
         type: 'error',
@@ -120,23 +128,67 @@ export default function DoctorAvailabilityManager({
   };
 
   const handleDelete = async (id: string, overrideDate: string) => {
-    if (!confirm(`Are you sure you want to remove the leave override for ${overrideDate}? This will reopen the slots for booking.`)) {
-      return;
-    }
+    setFeedback(null);
+    setRestoringId(id);
 
     try {
-      const res = await fetch(`/api/availability?id=${id}`, {
+      const res = await fetch(`/api/availability?id=${encodeURIComponent(id)}&t=${Date.now()}`, {
         method: 'DELETE',
+        cache: 'no-store',
       });
-      if (res.ok) {
-        setFeedback({
-          type: 'success',
-          message: `Availability restored for ${overrideDate}.`,
-        });
-        onRefresh();
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to restore availability.');
       }
-    } catch (err) {
+
+      if (Array.isArray(data.overrides) && onOverridesChange) {
+        onOverridesChange(data.overrides);
+      } else if (onOverridesChange) {
+        onOverridesChange(overrides.filter((item) => item.id !== id));
+      }
+
+      setFeedback({
+        type: 'success',
+        message: `Availability restored for ${overrideDate}. Slots on this date are now open for booking.`,
+      });
+
+      await onRefresh();
+    } catch (err: unknown) {
       console.error('Failed to delete availability override:', err);
+      setFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Failed to restore availability.',
+      });
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    setFeedback(null);
+    try {
+      const res = await fetch(`/api/availability?t=${Date.now()}`, {
+        cache: 'no-store',
+      });
+      const data = await res.json();
+      if (Array.isArray(data.overrides) && onOverridesChange) {
+        onOverridesChange(data.overrides);
+      }
+      await onRefresh();
+      setFeedback({
+        type: 'success',
+        message: 'Active doctor overrides list refreshed.',
+      });
+    } catch (err) {
+      console.error('Error refreshing overrides:', err);
+      setFeedback({
+        type: 'error',
+        message: 'Unable to refresh overrides. Please try again.',
+      });
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -159,17 +211,17 @@ export default function DoctorAvailabilityManager({
         </div>
       </div>
 
+      {feedback && (
+        <div className={`admin-alert alert-${feedback.type}`} role="status">
+          {feedback.message}
+        </div>
+      )}
+
       <div className="availability-layout-grid">
         {/* Availability Form Card */}
         <div className="availability-card form-card">
           <h3 className="card-heading">Set Unavailability / Blackout</h3>
           <p className="card-subhead">Specify dates or hours when Dr. Aarav will not take appointments.</p>
-
-          {feedback && (
-            <div className={`admin-alert alert-${feedback.type}`}>
-              {feedback.message}
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="availability-form">
             <div className="form-group">
@@ -286,20 +338,28 @@ export default function DoctorAvailabilityManager({
           <div className="list-card-header">
             <div>
               <h3 className="card-heading">Active Doctor Overrides</h3>
-              <p className="card-subhead">{overrides.length} leave / blackout rule{overrides.length === 1 ? '' : 's'} registered</p>
+              <p className="card-subhead">
+                {overrides.length} leave / blackout rule{overrides.length === 1 ? '' : 's'} registered
+              </p>
             </div>
-            <button type="button" onClick={onRefresh} className="btn-refresh" title="Refresh list">
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="btn-refresh"
+              title="Refresh list"
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <polyline points="23 4 23 10 17 10" />
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
               </svg>
-              <span>Refresh</span>
+              <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
             </button>
           </div>
 
           {overrides.length === 0 ? (
             <div className="empty-overrides-state">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" style={{ marginInline: 'auto' }}>
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                 <line x1="16" y1="2" x2="16" y2="6"></line>
                 <line x1="8" y1="2" x2="8" y2="6"></line>
@@ -321,47 +381,66 @@ export default function DoctorAvailabilityManager({
                   </tr>
                 </thead>
                 <tbody>
-                  {overrides.map((item) => (
-                    <tr key={item.id}>
-                      <td>
-                        <strong>{item.date}</strong>
-                      </td>
-                      <td>
-                        <span className={`override-type-pill ${item.type}`}>
-                          {item.type === 'full_day' ? 'Full Day Off' : 'Partial Slots'}
-                        </span>
-                      </td>
-                      <td>
-                        {item.type === 'full_day' ? (
-                          <span className="text-muted">All 10 clinic slots blocked</span>
-                        ) : (
-                          <div className="blocked-slots-badges">
-                            {item.blockedSlots?.map((slotVal) => {
-                              const label = ALL_SLOTS.find((s) => s.value === slotVal)?.label || slotVal;
-                              return (
-                                <span key={slotVal} className="slot-badge-mini">
-                                  {label}
-                                </span>
-                              );
-                            })}
+                  {overrides.map((item) => {
+                    const isRestoring = restoringId === item.id;
+                    const parsedDate = new Date(`${item.date}T00:00:00`);
+                    const formattedDate = !isNaN(parsedDate.getTime())
+                      ? parsedDate.toLocaleDateString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : item.date;
+                    const weekdayLabel = !isNaN(parsedDate.getTime())
+                      ? parsedDate.toLocaleDateString('en-IN', { weekday: 'long' })
+                      : '';
+
+                    return (
+                      <tr key={item.id}>
+                        <td className="col-override-date">
+                          <div className="override-date-cell">
+                            <strong>{formattedDate}</strong>
+                            <span>{weekdayLabel || item.date}</span>
                           </div>
-                        )}
-                      </td>
-                      <td>
-                        <span className="override-reason-text">{item.reason || 'Doctor unavailable'}</span>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="btn-delete-override"
-                          onClick={() => handleDelete(item.id, item.date)}
-                          title="Restore availability on this date"
-                        >
-                          Restore
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="col-override-type">
+                          <span className={`override-type-pill ${item.type}`}>
+                            {item.type === 'full_day' ? 'Full Day Off' : 'Partial Slots'}
+                          </span>
+                        </td>
+                        <td className="col-override-details">
+                          {item.type === 'full_day' ? (
+                            <span className="full-day-blocked-text">All 10 clinic slots blocked</span>
+                          ) : (
+                            <div className="blocked-slots-badges">
+                              {item.blockedSlots?.map((slotVal) => {
+                                const label = ALL_SLOTS.find((s) => s.value === slotVal)?.label || slotVal;
+                                return (
+                                  <span key={slotVal} className="slot-badge-mini">
+                                    {label}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </td>
+                        <td className="col-override-reason">
+                          <span className="override-reason-text">{item.reason || 'Doctor unavailable'}</span>
+                        </td>
+                        <td className="col-override-action">
+                          <button
+                            type="button"
+                            className="btn-delete-override"
+                            disabled={isRestoring}
+                            onClick={() => handleDelete(item.id, item.date)}
+                            title="Restore availability on this date"
+                          >
+                            {isRestoring ? 'Restoring...' : 'Restore'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -371,4 +450,3 @@ export default function DoctorAvailabilityManager({
     </div>
   );
 }
-

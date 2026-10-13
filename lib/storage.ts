@@ -19,7 +19,7 @@ export interface Appointment {
   status?: 'confirmed' | 'completed' | 'cancelled' | 'no-show';
   paymentStatus?: 'paid' | 'pending' | 'refunded';
   amount?: number; // In INR, default: 800
-  paymentMethod?: 'UPI' | 'Card' | 'NetBanking' | 'Cash' | 'Pending';
+  paymentMethod?: 'UPI' | 'Card' | 'NetBanking' | 'Cash' | 'Razorpay' | 'Pending';
   paymentId?: string;
   paidAt?: string;
   notes?: string;

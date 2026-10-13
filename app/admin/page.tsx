@@ -256,8 +256,9 @@ export default function AdminPage() {
     if (searchQuery) params.set('q', searchQuery);
     if (statusFilter !== 'all') params.set('status', statusFilter);
     if (timeFilter !== 'all') params.set('time', timeFilter);
+    params.set('t', String(Date.now()));
 
-    fetch(`/api/admin/appointments?${params.toString()}`)
+    fetch(`/api/admin/appointments?${params.toString()}`, { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (data.appointments) setAppointments(data.appointments);
@@ -269,7 +270,7 @@ export default function AdminPage() {
 
   // Fetch Revenue Analytics
   const loadRevenue = useCallback(() => {
-    fetch('/api/admin/revenue')
+    fetch(`/api/admin/revenue?t=${Date.now()}`, { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (data.summary) setRevenueData(data);
@@ -279,10 +280,10 @@ export default function AdminPage() {
 
   // Fetch Doctor Overrides
   const loadOverrides = useCallback(() => {
-    fetch('/api/availability')
+    return fetch(`/api/availability?t=${Date.now()}`, { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
-        if (data.overrides) setOverrides(data.overrides);
+        if (Array.isArray(data.overrides)) setOverrides(data.overrides);
       })
       .catch((err) => console.error('Failed to load doctor availability:', err));
   }, []);
@@ -1089,8 +1090,9 @@ export default function AdminPage() {
           <div className="tab-pane-fade">
             <DoctorAvailabilityManager
               overrides={overrides}
-              onRefresh={() => {
-                loadOverrides();
+              onOverridesChange={setOverrides}
+              onRefresh={async () => {
+                await loadOverrides();
                 loadAppointments();
               }}
             />

@@ -11,7 +11,7 @@ export default function Header() {
 
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 8);
+      setIsScrolled(window.scrollY > 12);
     };
 
     handleScroll();
@@ -30,7 +30,6 @@ export default function Header() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Close mobile menu whenever pathname changes
   useEffect(() => {
     setIsMenuOpen(false);
   }, [pathname]);
@@ -45,17 +44,21 @@ export default function Header() {
 
   return (
     <header className={`site-header ${isScrolled ? 'scrolled' : ''}`}>
-      <div className="utility">
-        <div className="container utility-inner">
-          <span>Monday to Saturday, 9:00 AM to 6:00 PM</span>
-          <a href="tel:+919876543210">+91 98765 43210</a>
-        </div>
-      </div>
       <div className="container header-inner">
-        <Link href="/" className="brand" onClick={closeMenu}>
-          <strong>Dr. Aarav Mehta</strong>
-          <small>Homeopathy Clinic, Pune</small>
+        <Link href="/" className="brand-meditro" onClick={closeMenu}>
+          <span className="brand-logo-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3" />
+              <path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4" />
+              <circle cx="20" cy="10" r="2" />
+            </svg>
+          </span>
+          <span className="brand-text-wrap">
+            <strong>Dr. Aarav</strong>
+            <small>Homeopathy Clinic</small>
+          </span>
         </Link>
+
         <button
           className="menu-toggle"
           type="button"
@@ -68,6 +71,7 @@ export default function Header() {
           <span></span>
           <span></span>
         </button>
+
         <nav
           id="main-nav"
           className={`main-nav ${isMenuOpen ? 'open' : ''}`}
@@ -89,12 +93,17 @@ export default function Header() {
                 className={pathname === '/about' ? 'active' : ''}
                 onClick={closeMenu}
               >
-                About the doctor
+                About Us
               </Link>
             </li>
             <li>
               <Link href="/#treatments" onClick={closeMenu}>
-                Treatments
+                Services
+              </Link>
+            </li>
+            <li>
+              <Link href="/#process" onClick={closeMenu}>
+                How It Works
               </Link>
             </li>
             <li>
@@ -103,25 +112,45 @@ export default function Header() {
                 className={pathname === '/appointment' ? 'active' : ''}
                 onClick={closeMenu}
               >
-                Appointment
+                Booking
               </Link>
             </li>
             <li>
-              <a href="#contact" onClick={closeMenu}>
-                Contact
-              </a>
+              <Link
+                href="/admin"
+                className={pathname?.startsWith('/admin') ? 'active' : ''}
+                onClick={closeMenu}
+              >
+                Admin Panel
+              </Link>
             </li>
           </ul>
-          <Link
-            href="/appointment"
-            className="btn btn-small"
-            onClick={closeMenu}
-          >
-            Book an appointment
-          </Link>
+
+          <div className="header-actions-group">
+            <a href="tel:+919876543210" className="header-phone-item">
+              <span className="header-phone-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                </svg>
+              </span>
+              <span className="header-phone-number">(+91) 98765 43210</span>
+            </a>
+
+            <Link
+              href="/appointment"
+              className="btn-meditro-nav"
+              onClick={closeMenu}
+            >
+              <span>Book Visit</span>
+              <span className="btn-arrow-box" aria-hidden="true">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </span>
+            </Link>
+          </div>
         </nav>
       </div>
     </header>
   );
 }
-

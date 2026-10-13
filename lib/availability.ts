@@ -23,8 +23,9 @@ const DATA_DIR = isServerless
 const AVAILABILITY_FILE = path.join(DATA_DIR, 'doctor-availability.json');
 const BUNDLED_AVAILABILITY_FILE = path.join(process.cwd(), 'data', 'doctor-availability.json');
 
-// In-memory fallback
-let inMemoryOverrides: DoctorOverride[] = [];
+// In-memory state for serverless resilience
+let inMemoryOverrides: DoctorOverride[] | null = null;
+const deletedOverrideIds = new Set<string>();
 
 function ensureDataDir(): boolean {
   try {
@@ -50,34 +51,39 @@ export function getAllDoctorOverrides(): DoctorOverride[] {
         const raw = fs.readFileSync(fileToRead, 'utf-8');
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          // Merge with any in-memory additions
-          const ids = new Set(parsed.map((o: DoctorOverride) => o.id));
-          const additions = inMemoryOverrides.filter((o) => !ids.has(o.id));
-          return [...parsed, ...additions];
+          const baseList = parsed.filter((o: DoctorOverride) => !deletedOverrideIds.has(o.id));
+          if (inMemoryOverrides) {
+            const ids = new Set(baseList.map((o: DoctorOverride) => o.id));
+            const additions = inMemoryOverrides.filter(
+              (o) => !ids.has(o.id) && !deletedOverrideIds.has(o.id)
+            );
+            return [...baseList, ...additions];
+          }
+          return baseList;
         }
       }
     } catch (err) {
       console.warn('[availability] Failed to read availability file, using fallback:', err);
     }
   }
-  return inMemoryOverrides;
+  return (inMemoryOverrides || []).filter((o) => !deletedOverrideIds.has(o.id));
 }
 
 export function saveDoctorOverride(override: DoctorOverride): DoctorOverride {
-  inMemoryOverrides = [
-    ...inMemoryOverrides.filter((o) => o.id !== override.id),
-    override,
-  ];
+  deletedOverrideIds.delete(override.id);
+  const current = getAllDoctorOverrides();
+
+  // Deduplicate by ID
+  const map = new Map<string, DoctorOverride>();
+  current.forEach((item) => map.set(item.id, item));
+  map.set(override.id, override);
+  const updatedList = Array.from(map.values());
+
+  inMemoryOverrides = updatedList;
 
   if (ensureDataDir()) {
     try {
-      const all = getAllDoctorOverrides();
-      // Deduplicate by ID
-      const map = new Map<string, DoctorOverride>();
-      all.forEach((item) => map.set(item.id, item));
-      map.set(override.id, override);
-      const list = Array.from(map.values());
-      fs.writeFileSync(AVAILABILITY_FILE, JSON.stringify(list, null, 2), 'utf-8');
+      fs.writeFileSync(AVAILABILITY_FILE, JSON.stringify(updatedList, null, 2), 'utf-8');
     } catch (err) {
       console.warn('[availability] Failed to write availability to disk, saved in-memory:', err);
     }
@@ -86,23 +92,22 @@ export function saveDoctorOverride(override: DoctorOverride): DoctorOverride {
   return override;
 }
 
-export function deleteDoctorOverride(id: string): boolean {
-  inMemoryOverrides = inMemoryOverrides.filter((o) => o.id !== id);
+export function deleteDoctorOverride(id: string): DoctorOverride[] {
+  const current = getAllDoctorOverrides();
+  deletedOverrideIds.add(id);
+
+  const filtered = current.filter((o) => o.id !== id);
+  inMemoryOverrides = filtered;
 
   if (ensureDataDir()) {
     try {
-      if (fs.existsSync(AVAILABILITY_FILE)) {
-        const raw = fs.readFileSync(AVAILABILITY_FILE, 'utf-8');
-        const parsed: DoctorOverride[] = JSON.parse(raw);
-        const filtered = parsed.filter((o) => o.id !== id);
-        fs.writeFileSync(AVAILABILITY_FILE, JSON.stringify(filtered, null, 2), 'utf-8');
-      }
-      return true;
+      fs.writeFileSync(AVAILABILITY_FILE, JSON.stringify(filtered, null, 2), 'utf-8');
     } catch (err) {
-      console.warn('[availability] Failed to delete override from disk:', err);
+      console.warn('[availability] Failed to write updated overrides to disk:', err);
     }
   }
-  return true;
+
+  return filtered;
 }
 
 /**
@@ -148,4 +153,3 @@ export function getDoctorBlockedDates(): { date: string; reason: string }[] {
     .filter((o) => o.type === 'full_day')
     .map((o) => ({ date: o.date, reason: o.reason }));
 }
-

@@ -8,14 +8,23 @@ import {
   DoctorOverride,
 } from '@/lib/availability';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const overrides = getAllDoctorOverrides();
   const blockedDates = getDoctorBlockedDates();
 
-  return NextResponse.json({
-    overrides,
-    blockedDates,
-  });
+  return NextResponse.json(
+    {
+      overrides,
+      blockedDates,
+    },
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
+    }
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -54,10 +63,20 @@ export async function POST(request: NextRequest) {
     };
 
     saveDoctorOverride(override);
+    const overrides = getAllDoctorOverrides();
 
     return NextResponse.json(
-      { message: 'Doctor availability override saved successfully.', override },
-      { status: 201 }
+      {
+        message: 'Doctor availability override saved successfully.',
+        override,
+        overrides,
+      },
+      {
+        status: 201,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      }
     );
   } catch (err: unknown) {
     console.error('Error saving doctor availability override:', err);
@@ -80,11 +99,19 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    deleteDoctorOverride(id);
+    const overrides = deleteDoctorOverride(id);
 
-    return NextResponse.json({
-      message: 'Doctor availability override removed successfully.',
-    });
+    return NextResponse.json(
+      {
+        message: 'Doctor availability override removed successfully.',
+        overrides,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      }
+    );
   } catch (err: unknown) {
     console.error('Error removing doctor availability override:', err);
     return NextResponse.json(
@@ -93,4 +120,3 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
-

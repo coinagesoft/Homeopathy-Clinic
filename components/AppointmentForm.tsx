@@ -34,11 +34,91 @@ interface ConfirmedBooking {
   date: string;
   time: string;
   reason: string;
+  paymentId?: string;
+  amount?: number;
   meetLink?: string;
   googleCalendarUrl?: string;
   googleConnected?: boolean;
   doctorEmail?: string;
   calendarError?: string;
+}
+
+interface RazorpaySuccessResponse {
+  razorpay_payment_id: string;
+  razorpay_order_id?: string;
+  razorpay_signature?: string;
+}
+
+interface RazorpayFailureResponse {
+  error?: {
+    code?: string;
+    description?: string;
+    source?: string;
+    step?: string;
+    reason?: string;
+  };
+}
+
+interface RazorpayOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  prefill?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
+  notes?: Record<string, string>;
+  theme?: {
+    color?: string;
+  };
+  modal?: {
+    ondismiss?: () => void;
+  };
+  handler: (response: RazorpaySuccessResponse) => void;
+}
+
+interface RazorpayInstance {
+  open: () => void;
+  on: (event: string, callback: (response: RazorpayFailureResponse) => void) => void;
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayOptions) => RazorpayInstance;
+  }
+}
+
+const RAZORPAY_KEY_ID =
+  process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_TnHamcVIUGKBfj';
+const CONSULTATION_FEE_INR = 800;
+
+function loadRazorpayCheckoutScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve(false);
+      return;
+    }
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const existingScript = document.getElementById('razorpay-checkout-js') as HTMLScriptElement | null;
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(true));
+      existingScript.addEventListener('error', () => resolve(false));
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'razorpay-checkout-js';
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
 }
 
 export default function AppointmentForm() {
@@ -53,8 +133,12 @@ export default function AppointmentForm() {
     message: '',
   });
 
+  const [bookingStep, setBookingStep] = useState<1 | 2>(1);
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
+  const [isCheckingSlot, setIsCheckingSlot] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBooking | null>(null);
   const [tomorrowIso, setTomorrowIso] = useState('');
 
@@ -80,8 +164,9 @@ export default function AppointmentForm() {
   const calendarSectionRef = useRef<HTMLDivElement>(null);
   const slotSectionRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const paymentStepRef = useRef<HTMLDivElement>(null);
 
-  // Check URL params for Google OAuth feedback & status and fetch doctor availability
+  // Check URL params for Google OAuth feedback & status, fetch doctor availability, and preload Razorpay script
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -94,6 +179,7 @@ export default function AppointmentForm() {
 
     fetchGoogleStatus();
     fetchDoctorAvailability();
+    loadRazorpayCheckoutScript();
   }, []);
 
   const fetchDoctorAvailability = () => {
@@ -287,14 +373,17 @@ export default function AppointmentForm() {
         weekday: 'long',
         day: 'numeric',
         month: 'long',
+        year: 'numeric',
       });
     } catch {
       return '';
     }
   }, [formData.date, isSunday]);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  // Validate form, verify slot availability, and directly open Razorpay Checkout for ₹800
+  const handlePayAndBookSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setPaymentError(null);
 
     const newErrors: Partial<Record<keyof FormData, string>> = {};
     const fieldKeys = Object.keys(formData) as (keyof FormData)[];
@@ -325,20 +414,63 @@ export default function AppointmentForm() {
       return;
     }
 
+    // Verify real-time slot availability before opening Razorpay
+    setIsCheckingSlot(true);
+    try {
+      const res = await fetch(`/api/appointments?date=${formData.date}`);
+      const data = await res.json();
+      if (data.isDoctorBlocked) {
+        setIsDoctorDateBlocked(true);
+        setDoctorBlockReason(data.doctorBlockReason || '');
+        setErrors((prev) => ({
+          ...prev,
+          date: `Doctor is unavailable on ${formData.date}. Please choose another date.`,
+        }));
+        calendarSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setIsCheckingSlot(false);
+        return;
+      }
+      if (Array.isArray(data.bookedSlots) && data.bookedSlots.includes(formData.time)) {
+        setServerBookedSlots(data.bookedSlots);
+        setErrors((prev) => ({
+          ...prev,
+          time: 'This time slot was just booked or blocked. Please select another available slot.',
+        }));
+        slotSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setIsCheckingSlot(false);
+        return;
+      }
+    } catch (err) {
+      console.error('Error checking slot availability:', err);
+    } finally {
+      setIsCheckingSlot(false);
+    }
+
+    setConfirmedBooking(null);
+    await handleRazorpayPayment();
+  };
+
+  // Create appointment on backend after Razorpay payment succeeds
+  const createAppointmentAfterPayment = async (razorpayPaymentId: string) => {
     setIsSubmitting(true);
+    setPaymentError(null);
 
     try {
       const response = await fetch('/api/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          paymentId: razorpayPaymentId,
+          paymentMethod: 'Razorpay',
+          amount: CONSULTATION_FEE_INR,
+        }),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
         if (response.status === 409) {
-          // Slot already booked
           setErrors((prev) => ({
             ...prev,
             time: 'This time slot is already booked for this date. Please choose another slot.',
@@ -346,13 +478,16 @@ export default function AppointmentForm() {
           fetchBookedSlots(formData.date);
           slotSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
-          alert(result.error || 'Failed to book appointment. Please try again.');
+          setPaymentError(
+            result.error ||
+              `Payment (${razorpayPaymentId}) succeeded, but booking encountered an error. Please contact the clinic.`
+          );
         }
         setIsSubmitting(false);
         return;
       }
 
-      // Success
+      // Booking confirmed!
       setConfirmedBooking({
         id: result.appointment.id,
         fullName: result.appointment.fullName,
@@ -360,6 +495,8 @@ export default function AppointmentForm() {
         date: result.appointment.date,
         time: result.appointment.time,
         reason: result.appointment.reason,
+        paymentId: result.appointment.paymentId || razorpayPaymentId,
+        amount: result.appointment.amount || CONSULTATION_FEE_INR,
         meetLink: result.meetLink,
         googleCalendarUrl: result.googleCalendarUrl,
         googleConnected: result.googleConnected,
@@ -385,18 +522,93 @@ export default function AppointmentForm() {
       setTimeout(() => {
         successBoxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         successBoxRef.current?.focus();
-      }, 50);
+      }, 80);
     } catch (err) {
-      console.error('Error submitting appointment:', err);
-      alert('Network error occurred. Please check your connection and try again.');
+      console.error('Error submitting appointment after payment:', err);
+      setPaymentError(
+        `Network error while finalizing booking (Payment ID: ${razorpayPaymentId}). Please try again.`
+      );
     } finally {
       setIsSubmitting(false);
+      setIsProcessingPayment(false);
     }
   };
 
+  // Launch Razorpay Checkout for ₹800 directly
+  const handleRazorpayPayment = async () => {
+    setPaymentError(null);
+    setIsProcessingPayment(true);
+
+    const scriptLoaded = await loadRazorpayCheckoutScript();
+    if (!scriptLoaded || !window.Razorpay) {
+      setPaymentError(
+        'Unable to load Razorpay payment gateway. Please check your internet connection and try again.'
+      );
+      setIsProcessingPayment(false);
+      return;
+    }
+
+    const cleanPhone = formData.phone.replace(/[\s-]/g, '');
+
+    const options: RazorpayOptions = {
+      key: RAZORPAY_KEY_ID,
+      amount: CONSULTATION_FEE_INR * 100, // 80000 paise = ₹800
+      currency: 'INR',
+      name: 'Dr. Aarav Homeopathy Clinic',
+      description: `Consultation on ${formData.date} at ${selectedSlotLabel}`,
+      prefill: {
+        name: formData.fullName.trim(),
+        email: formData.email.trim(),
+        contact: cleanPhone,
+      },
+      notes: {
+        patient_name: formData.fullName.trim(),
+        phone: cleanPhone,
+        email: formData.email.trim(),
+        age: formData.age,
+        reason: formData.reason,
+        appointment_date: formData.date,
+        appointment_time: formData.time,
+      },
+      theme: {
+        color: '#565ACF',
+      },
+      modal: {
+        ondismiss: () => {
+          setIsProcessingPayment(false);
+        },
+      },
+      handler: (response: RazorpaySuccessResponse) => {
+        if (response && response.razorpay_payment_id) {
+          createAppointmentAfterPayment(response.razorpay_payment_id);
+        } else {
+          setPaymentError('Payment verification did not return a payment ID. Please try again.');
+          setIsProcessingPayment(false);
+        }
+      },
+    };
+
+    try {
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', (failure: RazorpayFailureResponse) => {
+        const msg =
+          failure?.error?.description ||
+          'Payment failed or was declined. Please try again to complete your booking.';
+        setPaymentError(msg);
+        setIsProcessingPayment(false);
+      });
+      rzp.open();
+    } catch (err) {
+      console.error('Failed to open Razorpay checkout:', err);
+      setPaymentError('Could not initialize Razorpay checkout. Please try again.');
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const isBusy = isCheckingSlot || isProcessingPayment || isSubmitting;
+
   return (
     <div>
-      {/* Google Calendar status banner for doctor */}
       {/* Booking confirmation box */}
       {confirmedBooking && (
         <div
@@ -406,6 +618,16 @@ export default function AppointmentForm() {
           tabIndex={-1}
           ref={successBoxRef}
         >
+          <div className="success-payment-pill">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <span>
+              ₹{confirmedBooking.amount || CONSULTATION_FEE_INR} Paid Successfully
+              {confirmedBooking.paymentId ? ` • Payment ID: ${confirmedBooking.paymentId}` : ''}
+            </span>
+          </div>
           <h2>Appointment confirmed!</h2>
           <p>
             Thank you, <strong>{confirmedBooking.fullName}</strong>. Your consultation has been
@@ -418,65 +640,25 @@ export default function AppointmentForm() {
 
           <div className="meet-box">
             <h3>Google Meet Consultation</h3>
-
-            {confirmedBooking.googleConnected ? (
-              <div className="notice-success">
-                Your consultation has been booked successfully! The appointment with Google Meet
-                video call has been scheduled on your calendar.
-              </div>
-            ) : (
-              <div className="notice-warning">
-                Your consultation has been booked! Use the button below to add this appointment
-                directly to your Google Calendar.
-              </div>
-            )}
-
-            <div className="meet-link-row">
-              {confirmedBooking.meetLink && (
-                <a
-                  href={confirmedBooking.meetLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-small"
-                  style={{ textDecoration: 'none' }}
-                >
-                  Join Google Meet
-                </a>
-              )}
-
-              {confirmedBooking.googleCalendarUrl && (
-                <a
-                  href={confirmedBooking.googleCalendarUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-calendar"
-                  style={{ textDecoration: 'none' }}
-                >
-                  Add to Google Calendar
-                </a>
-              )}
-
-              <a
-                href={`/api/appointments/${confirmedBooking.id}/ics`}
-                download
-                className="btn-outline"
-                style={{ textDecoration: 'none' }}
-              >
-                Download .ics Invite
-              </a>
+            <div className="notice-success">
+              Your consultation has been booked successfully! The appointment with Google Meet
+              video call has been scheduled on your calendar.
             </div>
           </div>
         </div>
       )}
 
-
-
-      <div className="form-panel">
+      <div className="form-panel" ref={paymentStepRef}>
         <div className="form-heading">
           <h2>Your details</h2>
           <p>All fields are required except the message.</p>
         </div>
-        <form id="appointment-form" noValidate ref={formRef} onSubmit={handleSubmit}>
+        <form
+          id="appointment-form"
+          noValidate
+          ref={formRef}
+          onSubmit={handlePayAndBookSubmit}
+        >
           <div className="form-grid">
             {/* Full Name */}
             <div className={`field full ${errors.fullName ? 'invalid' : ''}`}>
@@ -490,7 +672,7 @@ export default function AppointmentForm() {
                 onChange={handleInputChange}
                 aria-invalid={!!errors.fullName}
                 aria-describedby="fullName-error"
-                disabled={isSubmitting}
+                disabled={isBusy}
               />
               <p className="error-text" id="fullName-error">
                 {errors.fullName}
@@ -510,7 +692,7 @@ export default function AppointmentForm() {
                 onChange={handleInputChange}
                 aria-invalid={!!errors.phone}
                 aria-describedby="phone-error"
-                disabled={isSubmitting}
+                disabled={isBusy}
               />
               <p className="error-text" id="phone-error">
                 {errors.phone}
@@ -530,7 +712,7 @@ export default function AppointmentForm() {
                 onChange={handleInputChange}
                 aria-invalid={!!errors.email}
                 aria-describedby="email-error"
-                disabled={isSubmitting}
+                disabled={isBusy}
               />
               <p className="error-text" id="email-error">
                 {errors.email}
@@ -551,7 +733,7 @@ export default function AppointmentForm() {
                 onChange={handleInputChange}
                 aria-invalid={!!errors.age}
                 aria-describedby="age-error"
-                disabled={isSubmitting}
+                disabled={isBusy}
               />
               <p className="error-text" id="age-error">
                 {errors.age}
@@ -568,7 +750,7 @@ export default function AppointmentForm() {
                 onChange={handleInputChange}
                 aria-invalid={!!errors.reason}
                 aria-describedby="reason-error"
-                disabled={isSubmitting}
+                disabled={isBusy}
               >
                 <option value="">Select a reason</option>
                 <option>Allergies</option>
@@ -603,7 +785,7 @@ export default function AppointmentForm() {
                 selectedDate={formData.date}
                 onSelectDate={handleCalendarDateSelect}
                 minDate={tomorrowIso}
-                disabled={isSubmitting}
+                disabled={isBusy}
                 doctorBlockedDates={doctorBlockedDates}
               />
 
@@ -667,7 +849,7 @@ export default function AppointmentForm() {
                             className={`slot-btn ${
                               isDoctorBlocked ? 'doctor-blocked' : isBooked ? 'booked' : 'open'
                             } ${isSelected ? 'selected' : ''}`}
-                            disabled={isUnavailable || isSubmitting}
+                            disabled={isUnavailable || isBusy}
                             aria-label={
                               isDoctorBlocked
                                 ? `${slot.label} (Doctor Unavailable)`
@@ -751,7 +933,7 @@ export default function AppointmentForm() {
                 value={formData.message}
                 onChange={handleInputChange}
                 aria-describedby="message-error"
-                disabled={isSubmitting}
+                disabled={isBusy}
               ></textarea>
               <p className="error-text" id="message-error">
                 {errors.message}
@@ -759,9 +941,26 @@ export default function AppointmentForm() {
             </div>
           </div>
 
+          {paymentError && (
+            <div className="payment-error-banner" role="alert" style={{ marginTop: '16px' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span>{paymentError}</span>
+            </div>
+          )}
+
           <div className="form-actions">
-            <button type="submit" className="btn" disabled={isSubmitting}>
-              {isSubmitting ? 'Scheduling with Google Meet...' : 'Request appointment'}
+            <button type="submit" className="btn" disabled={isBusy}>
+              {isSubmitting
+                ? 'Payment Successful! Booking Appointment...'
+                : isProcessingPayment
+                ? 'Opening Razorpay...'
+                : isCheckingSlot
+                ? 'Checking Slot...'
+                : 'Pay 800 Rs & Book Appointment'}
             </button>
           </div>
         </form>

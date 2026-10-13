@@ -63,7 +63,18 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { fullName, phone, email, age, reason, date, time, message } = body;
+    const {
+      fullName,
+      phone,
+      email,
+      age,
+      reason,
+      date,
+      time,
+      message,
+      paymentId,
+      paymentMethod,
+    } = body;
 
     // Validation
     if (!fullName || typeof fullName !== 'string' || fullName.trim().length < 3) {
@@ -150,6 +161,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!paymentId || typeof paymentId !== 'string' || !paymentId.trim()) {
+      return NextResponse.json(
+        { error: 'Payment of ₹800 is required to confirm your appointment.' },
+        { status: 400 }
+      );
+    }
+
     // Check doctor availability override (Full Day or Slot)
     const doctorDateBlock = isDateBlockedByDoctor(date);
     if (doctorDateBlock.blocked) {
@@ -202,8 +220,8 @@ export async function POST(request: NextRequest) {
       status: 'confirmed',
       paymentStatus: 'paid',
       amount: 800,
-      paymentMethod: 'UPI',
-      paymentId: `PAY-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+      paymentMethod: paymentMethod || 'Razorpay',
+      paymentId: paymentId.trim(),
       paidAt: new Date().toISOString(),
       notes: '',
     };

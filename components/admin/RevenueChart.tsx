@@ -166,12 +166,12 @@ export default function RevenueChart({
         >
           <defs>
             <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#2a7fa0" />
-              <stop offset="100%" stopColor="#63b8d8" stopOpacity="0.8" />
+              <stop offset="0%" stopColor="#565ACF" />
+              <stop offset="100%" stopColor="#8589F5" stopOpacity="0.85" />
             </linearGradient>
             <linearGradient id="activeBarGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#206583" />
-              <stop offset="100%" stopColor="#2a7fa0" />
+              <stop offset="0%" stopColor="#F17732" />
+              <stop offset="100%" stopColor="#FF975C" />
             </linearGradient>
           </defs>
 
