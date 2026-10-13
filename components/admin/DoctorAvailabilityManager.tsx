@@ -88,9 +88,14 @@ export default function DoctorAvailabilityManager({
     setIsSubmitting(true);
 
     try {
+      const accessToken = typeof window !== 'undefined' ? localStorage.getItem('admin_access_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
       const res = await fetch('/api/availability', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
+        credentials: 'same-origin',
         cache: 'no-store',
         body: JSON.stringify({
           date,
@@ -132,8 +137,14 @@ export default function DoctorAvailabilityManager({
     setRestoringId(id);
 
     try {
+      const accessToken = typeof window !== 'undefined' ? localStorage.getItem('admin_access_token') : null;
+      const headers: Record<string, string> = {};
+      if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
       const res = await fetch(`/api/availability?id=${encodeURIComponent(id)}&t=${Date.now()}`, {
         method: 'DELETE',
+        headers,
+        credentials: 'same-origin',
         cache: 'no-store',
       });
 

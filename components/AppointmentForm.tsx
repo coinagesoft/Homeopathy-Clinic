@@ -183,7 +183,7 @@ export default function AppointmentForm() {
   }, []);
 
   const fetchDoctorAvailability = () => {
-    fetch('/api/availability')
+    fetch(`/api/availability?t=${Date.now()}`, { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data.blockedDates)) {
@@ -194,7 +194,7 @@ export default function AppointmentForm() {
   };
 
   const fetchGoogleStatus = () => {
-    fetch('/api/auth/google/status')
+    fetch('/api/auth/google/status', { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => setGoogleStatus(data))
       .catch((err) => console.error('Error fetching Google status:', err));
@@ -239,13 +239,15 @@ export default function AppointmentForm() {
     }
 
     setIsLoadingSlots(true);
-    fetch(`/api/appointments?date=${dateString}`)
+    fetch(`/api/appointments?date=${dateString}&t=${Date.now()}`, { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
-        if (data.bookedSlots) {
+        if (Array.isArray(data.bookedSlots)) {
           setServerBookedSlots(data.bookedSlots);
+        } else {
+          setServerBookedSlots([]);
         }
-        if (data.doctorBlockedSlots) {
+        if (Array.isArray(data.doctorBlockedSlots)) {
           setDoctorBlockedSlots(data.doctorBlockedSlots);
         } else {
           setDoctorBlockedSlots([]);

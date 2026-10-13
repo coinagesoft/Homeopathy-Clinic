@@ -1,9 +1,20 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getAllAppointments } from '@/lib/storage';
+import { verifyAdminRequest } from '@/lib/adminAuth';
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: NextRequest) {
+  const auth = verifyAdminRequest(request);
+  if (!auth.authenticated) {
+    return NextResponse.json(
+      { error: auth.error || 'Unauthorized access.' },
+      { status: 401 }
+    );
+  }
+
   try {
-    const appointments = getAllAppointments();
+    const appointments = await getAllAppointments();
 
     const now = new Date();
     const currentYear = now.getFullYear();

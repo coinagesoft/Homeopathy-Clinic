@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllAppointments } from '@/lib/storage';
+import { getAppointmentById } from '@/lib/storage';
 import { generateIcsContent } from '@/lib/google';
 
 export async function GET(
@@ -7,8 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const appointments = getAllAppointments();
-  const appointment = appointments.find((a) => a.id === id);
+  const appointment = await getAppointmentById(id);
 
   if (!appointment) {
     return NextResponse.json({ error: 'Appointment not found' }, { status: 404 });

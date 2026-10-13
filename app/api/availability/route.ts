@@ -7,12 +7,13 @@ import {
   getDoctorBlockedDates,
   DoctorOverride,
 } from '@/lib/availability';
+import { verifyAdminRequest } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const overrides = getAllDoctorOverrides();
-  const blockedDates = getDoctorBlockedDates();
+  const overrides = await getAllDoctorOverrides();
+  const blockedDates = await getDoctorBlockedDates();
 
   return NextResponse.json(
     {
@@ -28,6 +29,14 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = verifyAdminRequest(request);
+  if (!auth.authenticated) {
+    return NextResponse.json(
+      { error: auth.error || 'Unauthorized access.' },
+      { status: 401 }
+    );
+  }
+
   try {
     const body = await request.json();
     const { date, type, blockedSlots, reason } = body;
@@ -62,8 +71,8 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    saveDoctorOverride(override);
-    const overrides = getAllDoctorOverrides();
+    await saveDoctorOverride(override);
+    const overrides = await getAllDoctorOverrides();
 
     return NextResponse.json(
       {
@@ -88,6 +97,14 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const auth = verifyAdminRequest(request);
+  if (!auth.authenticated) {
+    return NextResponse.json(
+      { error: auth.error || 'Unauthorized access.' },
+      { status: 401 }
+    );
+  }
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
@@ -99,7 +116,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const overrides = deleteDoctorOverride(id);
+    const overrides = await deleteDoctorOverride(id);
 
     return NextResponse.json(
       {

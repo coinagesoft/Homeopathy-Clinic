@@ -78,9 +78,9 @@ function IconClock({ size = 20 }: { size?: number }) {
   );
 }
 
-function IconRefresh() {
+function IconRefresh({ size = 14 }: { size?: number }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <polyline points="23 4 23 10 17 10" />
       <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
     </svg>
@@ -163,10 +163,19 @@ function pickBestPhone(existing: string, candidate: string): string {
 }
 
 export default function AdminPage() {
-  // Authentication State
+  // Authentication State (JWT Access Token + Refresh Token)
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [enteredPin, setEnteredPin] = useState('');
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [adminUser, setAdminUser] = useState<{
+    email: string;
+    name: string;
+    role: string;
+  } | null>(null);
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'patients' | 'payments' | 'availability'>('overview');
@@ -219,34 +228,193 @@ export default function AdminPage() {
     appointments: Appointment[];
   } | null>(null);
 
-  // Check login session on mount
-  useEffect(() => {
-    const session = localStorage.getItem('clinic_doctor_logged_in');
-    if (session === 'true') {
+  // Refresh JWT tokens using /api/admin/auth/refresh
+  const refreshAdminTokens = useCallback(async (): Promise<string | null> => {
+    try {
+      const storedRefreshToken = localStorage.getItem('admin_refresh_token');
+      const res = await fetch('/api/admin/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ refreshToken: storedRefreshToken }),
+      });
+
+      if (!res.ok) {
+        localStorage.removeItem('admin_access_token');
+        localStorage.removeItem('admin_refresh_token');
+        setIsAuthenticated(false);
+        setAdminUser(null);
+        return null;
+      }
+
+      const data = await res.json();
+      if (data.accessToken) {
+        localStorage.setItem('admin_access_token', data.accessToken);
+      }
+      if (data.refreshToken) {
+        localStorage.setItem('admin_refresh_token', data.refreshToken);
+      }
+      if (data.user) {
+        setAdminUser(data.user);
+      }
       setIsAuthenticated(true);
+      return data.accessToken || null;
+    } catch (err) {
+      console.error('Error refreshing admin token:', err);
+      return null;
     }
   }, []);
 
-  const handleLogin = (e?: React.FormEvent) => {
+  // Authenticated Fetch helper with automatic Access Token attachment & Refresh Token rotation
+  const adminFetch = useCallback(
+    async (url: string, options: RequestInit = {}): Promise<Response> => {
+      const token = localStorage.getItem('admin_access_token');
+      const headers = new Headers(options.headers || {});
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+
+      let response = await fetch(url, {
+        ...options,
+        headers,
+        credentials: 'same-origin',
+      });
+
+      // If access token expired (401), attempt automatic refresh via refresh token
+      if (response.status === 401) {
+        const newAccessToken = await refreshAdminTokens();
+        if (newAccessToken) {
+          headers.set('Authorization', `Bearer ${newAccessToken}`);
+          response = await fetch(url, {
+            ...options,
+            headers,
+            credentials: 'same-origin',
+          });
+        }
+      }
+
+      return response;
+    },
+    [refreshAdminTokens]
+  );
+
+  // Verify existing JWT session on mount via /api/admin/auth/me
+  useEffect(() => {
+    localStorage.removeItem('clinic_doctor_logged_in');
+
+    const verifySession = async () => {
+      setIsCheckingSession(true);
+      try {
+        const token = localStorage.getItem('admin_access_token');
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const res = await fetch('/api/admin/auth/me', {
+          method: 'GET',
+          headers,
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.accessToken) {
+            localStorage.setItem('admin_access_token', data.accessToken);
+          }
+          if (data.refreshToken) {
+            localStorage.setItem('admin_refresh_token', data.refreshToken);
+          }
+          if (data.user) {
+            setAdminUser(data.user);
+          }
+          setIsAuthenticated(true);
+        } else {
+          // Try refresh token if stored in localStorage
+          const storedRefresh = localStorage.getItem('admin_refresh_token');
+          if (storedRefresh) {
+            await refreshAdminTokens();
+          } else {
+            setIsAuthenticated(false);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to verify admin session:', err);
+        setIsAuthenticated(false);
+      } finally {
+        setIsCheckingSession(false);
+      }
+    };
+
+    verifySession();
+  }, [refreshAdminTokens]);
+
+  const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (enteredPin === '1234' || enteredPin === 'aarav2026') {
+    setLoginError('');
+
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) {
+      setLoginError('Please enter both your email address and password.');
+      return;
+    }
+
+    setIsSubmittingLogin(true);
+    try {
+      const res = await fetch('/api/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          email: cleanEmail,
+          password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setLoginError(data.error || 'Invalid email or password.');
+        return;
+      }
+
+      if (data.accessToken) {
+        localStorage.setItem('admin_access_token', data.accessToken);
+      }
+      if (data.refreshToken) {
+        localStorage.setItem('admin_refresh_token', data.refreshToken);
+      }
+      if (data.user) {
+        setAdminUser(data.user);
+      }
+
       setIsAuthenticated(true);
-      localStorage.setItem('clinic_doctor_logged_in', 'true');
+      setPassword('');
       setLoginError('');
-    } else {
-      setLoginError('Invalid Clinic PIN. (Default demo PIN is 1234)');
+    } catch (err) {
+      console.error('Admin login error:', err);
+      setLoginError('Network error while connecting to authentication server.');
+    } finally {
+      setIsSubmittingLogin(false);
     }
   };
 
-  const handleDemoLogin = () => {
-    setIsAuthenticated(true);
-    localStorage.setItem('clinic_doctor_logged_in', 'true');
-    setLoginError('');
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem('clinic_doctor_logged_in');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+    } catch (err) {
+      console.error('Error logging out:', err);
+    } finally {
+      localStorage.removeItem('admin_access_token');
+      localStorage.removeItem('admin_refresh_token');
+      localStorage.removeItem('clinic_doctor_logged_in');
+      setIsAuthenticated(false);
+      setAdminUser(null);
+    }
   };
 
   // Fetch Appointments & Stats
@@ -258,7 +426,7 @@ export default function AdminPage() {
     if (timeFilter !== 'all') params.set('time', timeFilter);
     params.set('t', String(Date.now()));
 
-    fetch(`/api/admin/appointments?${params.toString()}`, { cache: 'no-store' })
+    adminFetch(`/api/admin/appointments?${params.toString()}`, { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (data.appointments) setAppointments(data.appointments);
@@ -266,27 +434,27 @@ export default function AdminPage() {
       })
       .catch((err) => console.error('Failed to load admin appointments:', err))
       .finally(() => setIsLoadingAppointments(false));
-  }, [searchQuery, statusFilter, timeFilter]);
+  }, [searchQuery, statusFilter, timeFilter, adminFetch]);
 
   // Fetch Revenue Analytics
   const loadRevenue = useCallback(() => {
-    fetch(`/api/admin/revenue?t=${Date.now()}`, { cache: 'no-store' })
+    adminFetch(`/api/admin/revenue?t=${Date.now()}`, { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (data.summary) setRevenueData(data);
       })
       .catch((err) => console.error('Failed to load revenue analytics:', err));
-  }, []);
+  }, [adminFetch]);
 
   // Fetch Doctor Overrides
   const loadOverrides = useCallback(() => {
-    return fetch(`/api/availability?t=${Date.now()}`, { cache: 'no-store' })
+    return adminFetch(`/api/availability?t=${Date.now()}`, { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data.overrides)) setOverrides(data.overrides);
       })
       .catch((err) => console.error('Failed to load doctor availability:', err));
-  }, []);
+  }, [adminFetch]);
 
   // Initial Data Load
   useEffect(() => {
@@ -303,7 +471,7 @@ export default function AdminPage() {
     status: 'confirmed' | 'completed' | 'cancelled' | 'no-show'
   ) => {
     try {
-      const res = await fetch('/api/admin/appointments', {
+      const res = await adminFetch('/api/admin/appointments', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status }),
@@ -336,7 +504,7 @@ export default function AdminPage() {
     paymentStatus: 'paid' | 'pending' | 'refunded'
   ) => {
     try {
-      const res = await fetch('/api/admin/appointments', {
+      const res = await adminFetch('/api/admin/appointments', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, paymentStatus }),
@@ -353,7 +521,7 @@ export default function AdminPage() {
   // Update Notes
   const handleUpdateNotes = async (id: string, notes: string) => {
     try {
-      const res = await fetch('/api/admin/appointments', {
+      const res = await adminFetch('/api/admin/appointments', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, notes }),
@@ -384,7 +552,7 @@ export default function AdminPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/admin/appointments?id=${id}`, {
+      const res = await adminFetch(`/api/admin/appointments?id=${id}`, {
         method: 'DELETE',
       });
       if (res.ok) {
@@ -439,46 +607,127 @@ export default function AdminPage() {
     [patientDirectory]
   );
 
-  // If Not Authenticated, Render Login Screen
+  // If Not Authenticated, Render Redesigned MediTro Email & Password Login Screen
   if (!isAuthenticated) {
     return (
       <div className="admin-login-screen">
         <div className="admin-login-card">
+          {/* <div className="admin-login-security-pill">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <polyline points="9 12 11 14 15 10" />
+            </svg>
+            <span>JWT Access &amp; Refresh Token Protected</span>
+          </div> */}
+
           <div className="admin-login-logo">
-            <span className="clinic-symbol">&#x271A;</span>
+            <div className="clinic-symbol" aria-hidden="true">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v20M2 12h20" />
+              </svg>
+            </div>
             <h2>Dr. Aarav Mehta Clinic</h2>
             <p>Doctor &amp; Administrative Management Portal</p>
           </div>
 
-          {loginError && <div className="admin-alert alert-error">{loginError}</div>}
-
-          <form onSubmit={handleLogin} className="admin-login-form">
-            <div className="form-group">
-              <label htmlFor="pin-input">Doctor Access PIN</label>
-              <input
-                type="password"
-                id="pin-input"
-                maxLength={8}
-                value={enteredPin}
-                onChange={(e) => setEnteredPin(e.target.value)}
-                placeholder="Enter 4-digit PIN (1234)"
-                className="admin-input pin-input"
-                autoFocus
-              />
+          {loginError && (
+            <div className="admin-alert alert-error admin-login-alert" role="alert">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span>{loginError}</span>
             </div>
+          )}
 
-            <button type="submit" className="btn btn-login-submit">
-              Sign In to Admin Portal
-            </button>
+          {isCheckingSession ? (
+            <div className="admin-session-checking">
+              <div className="admin-session-spinner" aria-hidden="true" />
+              <span>Verifying encrypted admin session...</span>
+            </div>
+          ) : (
+            <form onSubmit={handleLogin} className="admin-login-form" noValidate>
+              <div className="admin-field-group">
+                <label htmlFor="admin-email-input">Doctor / Admin Email</label>
+                <div className="admin-input-wrapper">
+                  <span className="admin-input-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                      <polyline points="22,6 12,13 2,6" />
+                    </svg>
+                  </span>
+                  <input
+                    type="email"
+                    id="admin-email-input"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter admin email address"
+                    className="admin-auth-input"
+                    autoComplete="email"
+                    autoFocus
+                    required
+                  />
+                </div>
+              </div>
 
-            <button
-              type="button"
-              className="btn btn-demo-login"
-              onClick={handleDemoLogin}
-            >
-              Demo Sign In as Doctor (PIN: 1234)
-            </button>
-          </form>
+              <div className="admin-field-group">
+                <label htmlFor="admin-password-input">Password</label>
+                <div className="admin-input-wrapper">
+                  <span className="admin-input-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  </span>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="admin-password-input"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="admin-auth-input has-toggle"
+                    autoComplete="current-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="admin-password-toggle"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-login-submit"
+                disabled={isSubmittingLogin}
+              >
+                {isSubmittingLogin ? (
+                  <span>Authenticating &amp; Issuing Tokens...</span>
+                ) : (
+                  <>
+                    <span>Sign In to Admin Portal</span>
+                    <IconArrowRight />
+                  </>
+                )}
+              </button>
+            </form>
+          )}
 
           <div className="login-footer-link">
             <Link href="/">&#x2190; Return to Public Clinic Website</Link>
@@ -498,7 +747,9 @@ export default function AdminPage() {
               <strong>Dr. Aarav Mehta</strong>
               <span>Admin Portal</span>
             </Link>
-            <span className="admin-badge-doctor">BHMS, MD (Homeopathy) &bull; Pune</span>
+            <span className="admin-badge-doctor">
+              {adminUser?.email ? `${adminUser.email} • Verified` : 'BHMS, MD (Homeopathy) • Pune'}
+            </span>
           </div>
 
           <div className="admin-topbar-right">
@@ -650,25 +901,31 @@ export default function AdminPage() {
                 <p className="widget-subtitle">Primary symptoms treated at Dr. Aarav clinic</p>
 
                 <div className="widget-list">
-                  {revenueData?.reasonBreakdown.map((item) => {
-                    const percent = stats.totalCount > 0 ? Math.round((item.count / stats.totalCount) * 100) : 0;
-                    return (
-                      <div key={item.reason} className="widget-breakdown-row">
-                        <div className="breakdown-labels">
-                          <strong>{item.reason}</strong>
-                          <span>
-                            {item.count} patients ({percent}%)
-                          </span>
+                  {!revenueData?.reasonBreakdown || revenueData.reasonBreakdown.length === 0 ? (
+                    <div className="widget-empty-note">
+                      No consultations recorded yet. Health concern breakdown will appear once appointments are booked.
+                    </div>
+                  ) : (
+                    revenueData.reasonBreakdown.map((item) => {
+                      const percent = stats.totalCount > 0 ? Math.round((item.count / stats.totalCount) * 100) : 0;
+                      return (
+                        <div key={item.reason} className="widget-breakdown-row">
+                          <div className="breakdown-labels">
+                            <strong>{item.reason}</strong>
+                            <span>
+                              {item.count} patients ({percent}%)
+                            </span>
+                          </div>
+                          <div className="breakdown-bar-track">
+                            <div
+                              className="breakdown-bar-fill"
+                              style={{ width: `${percent}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="breakdown-bar-track">
-                          <div
-                            className="breakdown-bar-fill"
-                            style={{ width: `${percent}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
@@ -677,15 +934,21 @@ export default function AdminPage() {
                 <h3 className="widget-title">Payment Methods &amp; Status</h3>
                 <p className="widget-subtitle">Breakdown of patient transactions</p>
 
-                <div className="payment-methods-grid">
-                  {revenueData?.paymentMethodBreakdown.map((m) => (
-                    <div key={m.method} className="method-tile">
-                      <span className="method-name">{m.method}</span>
-                      <strong className="method-amt">₹{m.amount.toLocaleString('en-IN')}</strong>
-                      <span className="method-count">{m.count} payments</span>
-                    </div>
-                  ))}
-                </div>
+                {!revenueData?.paymentMethodBreakdown || revenueData.paymentMethodBreakdown.length === 0 ? (
+                  <div className="widget-empty-note" style={{ marginBottom: '16px' }}>
+                    No payment transactions recorded yet.
+                  </div>
+                ) : (
+                  <div className="payment-methods-grid">
+                    {revenueData.paymentMethodBreakdown.map((m) => (
+                      <div key={m.method} className="method-tile">
+                        <span className="method-name">{m.method}</span>
+                        <strong className="method-amt">₹{m.amount.toLocaleString('en-IN')}</strong>
+                        <span className="method-count">{m.count} payments</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="clinic-status-box">
                   <h4>Doctor Schedule Highlights:</h4>
@@ -764,10 +1027,41 @@ export default function AdminPage() {
             {/* Appointments Table */}
             <div className="admin-table-card">
               {isLoadingAppointments ? (
-                <div className="admin-loading-state">Loading appointments...</div>
+                <div className="admin-loading-state">
+                  <div className="admin-empty-icon">
+                    <IconRefresh size={24} />
+                  </div>
+                  <h4>Loading Appointments...</h4>
+                  <p>Fetching the latest appointment records from the database.</p>
+                </div>
               ) : appointments.length === 0 ? (
                 <div className="admin-empty-state">
-                  <p>No appointments match the chosen filter.</p>
+                  <div className="admin-empty-icon">
+                    <IconCalendar size={28} />
+                  </div>
+                  <h4>
+                    {stats.totalCount === 0 && !searchQuery && statusFilter === 'all' && timeFilter === 'all'
+                      ? 'No Appointments Available'
+                      : 'No Appointments Match the Chosen Filter'}
+                  </h4>
+                  <p>
+                    {stats.totalCount === 0 && !searchQuery && statusFilter === 'all' && timeFilter === 'all'
+                      ? 'There are currently no booked appointments in the database. New patient bookings will appear here automatically.'
+                      : 'No appointment records matched your current search or filter criteria. Try resetting the filters below.'}
+                  </p>
+                  {(searchQuery || statusFilter !== 'all' || timeFilter !== 'all') && (
+                    <button
+                      type="button"
+                      className="btn-reset-filters"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setStatusFilter('all');
+                        setTimeFilter('all');
+                      }}
+                    >
+                      Reset Filters
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="table-responsive">
@@ -911,63 +1205,77 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="patients-grid">
-              {patientDirectory.map((patient) => {
-                const totalSpent = patient.appointments
-                  .filter((a) => a.paymentStatus === 'paid' && a.status !== 'cancelled')
-                  .reduce((sum, a) => sum + (a.amount || 800), 0);
-
-                const latestAppt = patient.appointments[0];
-
-                return (
-                  <div key={patient.email || patient.phone} className="patient-card">
-                    <div className="patient-card-header">
-                      <div className="patient-avatar-circle">
-                        {patient.fullName.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="patient-header-details">
-                        <h4 className="patient-card-name">{patient.fullName}</h4>
-                        <span className="patient-card-age">Age: {patient.age || '—'}</span>
-                      </div>
-                    </div>
-
-                    <div className="patient-card-body">
-                      <div className="card-detail-item">
-                        <span>Phone:</span>
-                        <strong>{patient.phone}</strong>
-                      </div>
-                      <div className="card-detail-item">
-                        <span>Email:</span>
-                        <strong className="truncate-text">{patient.email}</strong>
-                      </div>
-                      <div className="card-detail-item">
-                        <span>Total Consultations:</span>
-                        <strong>{patient.appointments.length} Visits</strong>
-                      </div>
-                      <div className="card-detail-item">
-                        <span>Lifetime Spend:</span>
-                        <strong className="highlight-green">₹{totalSpent.toLocaleString('en-IN')}</strong>
-                      </div>
-                      <div className="card-detail-item">
-                        <span>Latest Visit:</span>
-                        <span>{latestAppt?.date || '—'}</span>
-                      </div>
-                    </div>
-
-                    <div className="patient-card-footer">
-                      <button
-                        type="button"
-                        className="btn-view-history"
-                        onClick={() => setSelectedPatient(patient)}
-                      >
-                        <span>View Full History &amp; Rx Notes</span>
-                        <IconArrowRight />
-                      </button>
-                    </div>
+            {patientDirectory.length === 0 ? (
+              <div className="admin-table-card">
+                <div className="admin-empty-state">
+                  <div className="admin-empty-icon">
+                    <IconUsers size={28} />
                   </div>
-                );
-              })}
-            </div>
+                  <h4>No Registered Patients Yet</h4>
+                  <p>
+                    Patient profiles are automatically created and grouped by email as soon as an appointment is booked.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="patients-grid">
+                {patientDirectory.map((patient) => {
+                  const totalSpent = patient.appointments
+                    .filter((a) => a.paymentStatus === 'paid' && a.status !== 'cancelled')
+                    .reduce((sum, a) => sum + (a.amount || 800), 0);
+
+                  const latestAppt = patient.appointments[0];
+
+                  return (
+                    <div key={patient.email || patient.phone} className="patient-card">
+                      <div className="patient-card-header">
+                        <div className="patient-avatar-circle">
+                          {patient.fullName.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="patient-header-details">
+                          <h4 className="patient-card-name">{patient.fullName}</h4>
+                          <span className="patient-card-age">Age: {patient.age || '—'}</span>
+                        </div>
+                      </div>
+
+                      <div className="patient-card-body">
+                        <div className="card-detail-item">
+                          <span>Phone:</span>
+                          <strong>{patient.phone}</strong>
+                        </div>
+                        <div className="card-detail-item">
+                          <span>Email:</span>
+                          <strong className="truncate-text">{patient.email}</strong>
+                        </div>
+                        <div className="card-detail-item">
+                          <span>Total Consultations:</span>
+                          <strong>{patient.appointments.length} Visits</strong>
+                        </div>
+                        <div className="card-detail-item">
+                          <span>Lifetime Spend:</span>
+                          <strong className="highlight-green">₹{totalSpent.toLocaleString('en-IN')}</strong>
+                        </div>
+                        <div className="card-detail-item">
+                          <span>Latest Visit:</span>
+                          <span>{latestAppt?.date || '—'}</span>
+                        </div>
+                      </div>
+
+                      <div className="patient-card-footer">
+                        <button
+                          type="button"
+                          className="btn-view-history"
+                          onClick={() => setSelectedPatient(patient)}
+                        >
+                          <span>View Full History &amp; Rx Notes</span>
+                          <IconArrowRight />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -1034,53 +1342,65 @@ export default function AdminPage() {
                 </span>
               </div>
 
-              <div className="table-responsive">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Transaction ID</th>
-                      <th>Patient Name</th>
-                      <th>Appointment Date</th>
-                      <th>Amount</th>
-                      <th>Method</th>
-                      <th>Payment Status</th>
-                      <th>Paid At</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {appointments.map((appt) => (
-                      <tr key={appt.id}>
-                        <td>
-                          <code>{appt.paymentId || `PAY-${appt.id.slice(0, 8).toUpperCase()}`}</code>
-                        </td>
-                        <td>
-                          <strong>{appt.fullName}</strong>
-                          <span className="cell-sub">{appt.phone}</span>
-                        </td>
-                        <td>
-                          {appt.date} ({appt.time})
-                        </td>
-                        <td>
-                          <strong>₹{appt.amount || 800}</strong>
-                        </td>
-                        <td>
-                          <span className="method-pill">{appt.paymentMethod || 'UPI'}</span>
-                        </td>
-                        <td>
-                          <span className={`payment-pill pill-${appt.paymentStatus || 'paid'}`}>
-                            {appt.paymentStatus || 'paid'}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="cell-sub">
-                            {appt.paidAt ? new Date(appt.paidAt).toLocaleDateString('en-IN') : '—'}
-                          </span>
-                        </td>
+              {appointments.length === 0 ? (
+                <div className="admin-empty-state">
+                  <div className="admin-empty-icon">
+                    <IconPayments size={28} />
+                  </div>
+                  <h4>No Payment Transactions Available</h4>
+                  <p>
+                    Completed ₹800 Razorpay consultation payments will be logged here automatically.
+                  </p>
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Transaction ID</th>
+                        <th>Patient Name</th>
+                        <th>Appointment Date</th>
+                        <th>Amount</th>
+                        <th>Method</th>
+                        <th>Payment Status</th>
+                        <th>Paid At</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {appointments.map((appt) => (
+                        <tr key={appt.id}>
+                          <td>
+                            <code>{appt.paymentId || `PAY-${appt.id.slice(0, 8).toUpperCase()}`}</code>
+                          </td>
+                          <td>
+                            <strong>{appt.fullName}</strong>
+                            <span className="cell-sub">{appt.phone}</span>
+                          </td>
+                          <td>
+                            {appt.date} ({appt.time})
+                          </td>
+                          <td>
+                            <strong>₹{appt.amount || 800}</strong>
+                          </td>
+                          <td>
+                            <span className="method-pill">{appt.paymentMethod || 'UPI'}</span>
+                          </td>
+                          <td>
+                            <span className={`payment-pill pill-${appt.paymentStatus || 'paid'}`}>
+                              {appt.paymentStatus || 'paid'}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="cell-sub">
+                              {appt.paidAt ? new Date(appt.paidAt).toLocaleDateString('en-IN') : '—'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}

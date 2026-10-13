@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import type { RowDataPacket } from 'mysql2/promise';
+import { getPool, ensureDatabaseSchema } from './db';
 
 export interface DoctorOverride {
   id: string;
@@ -10,128 +10,114 @@ export interface DoctorOverride {
   createdAt: string;
 }
 
-const isServerless = Boolean(
-  process.env.VERCEL ||
-  process.env.AWS_LAMBDA_FUNCTION_NAME ||
-  process.env.NOW_REGION
-);
-
-const DATA_DIR = isServerless
-  ? path.join('/tmp', 'clinic-data')
-  : path.join(process.cwd(), 'data');
-
-const AVAILABILITY_FILE = path.join(DATA_DIR, 'doctor-availability.json');
-const BUNDLED_AVAILABILITY_FILE = path.join(process.cwd(), 'data', 'doctor-availability.json');
-
-// In-memory state for serverless resilience
-let inMemoryOverrides: DoctorOverride[] | null = null;
-const deletedOverrideIds = new Set<string>();
-
-function ensureDataDir(): boolean {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    return true;
-  } catch (err) {
-    console.warn(`[availability] Unable to create ${DATA_DIR}:`, err);
-    return false;
-  }
+interface DoctorOverrideRow extends RowDataPacket {
+  id: string;
+  override_date: string;
+  override_type: 'full_day' | 'specific_slots';
+  blocked_slots: string | null;
+  reason: string;
+  created_at: string;
 }
 
-export function getAllDoctorOverrides(): DoctorOverride[] {
-  if (ensureDataDir()) {
+function mapRowToOverride(row: DoctorOverrideRow): DoctorOverride {
+  let blockedSlots: string[] | undefined = undefined;
+  if (row.blocked_slots) {
     try {
-      let fileToRead = AVAILABILITY_FILE;
-      if (!fs.existsSync(fileToRead) && fs.existsSync(BUNDLED_AVAILABILITY_FILE)) {
-        fileToRead = BUNDLED_AVAILABILITY_FILE;
+      const parsed = JSON.parse(row.blocked_slots);
+      if (Array.isArray(parsed)) {
+        blockedSlots = parsed;
       }
-
-      if (fs.existsSync(fileToRead)) {
-        const raw = fs.readFileSync(fileToRead, 'utf-8');
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          const baseList = parsed.filter((o: DoctorOverride) => !deletedOverrideIds.has(o.id));
-          if (inMemoryOverrides) {
-            const ids = new Set(baseList.map((o: DoctorOverride) => o.id));
-            const additions = inMemoryOverrides.filter(
-              (o) => !ids.has(o.id) && !deletedOverrideIds.has(o.id)
-            );
-            return [...baseList, ...additions];
-          }
-          return baseList;
-        }
-      }
-    } catch (err) {
-      console.warn('[availability] Failed to read availability file, using fallback:', err);
+    } catch {
+      blockedSlots = undefined;
     }
   }
-  return (inMemoryOverrides || []).filter((o) => !deletedOverrideIds.has(o.id));
+
+  return {
+    id: row.id,
+    date: row.override_date,
+    type: row.override_type,
+    blockedSlots,
+    reason: row.reason,
+    createdAt: row.created_at,
+  };
 }
 
-export function saveDoctorOverride(override: DoctorOverride): DoctorOverride {
-  deletedOverrideIds.delete(override.id);
-  const current = getAllDoctorOverrides();
+export async function getAllDoctorOverrides(): Promise<DoctorOverride[]> {
+  await ensureDatabaseSchema();
+  const pool = getPool();
+  const [rows] = await pool.execute<DoctorOverrideRow[]>(
+    `SELECT * FROM doctor_availability ORDER BY override_date ASC, created_at DESC`
+  );
+  return rows.map(mapRowToOverride);
+}
 
-  // Deduplicate by ID
-  const map = new Map<string, DoctorOverride>();
-  current.forEach((item) => map.set(item.id, item));
-  map.set(override.id, override);
-  const updatedList = Array.from(map.values());
+export async function saveDoctorOverride(override: DoctorOverride): Promise<DoctorOverride> {
+  await ensureDatabaseSchema();
+  const pool = getPool();
+  const blockedSlotsJson =
+    override.type === 'specific_slots' && Array.isArray(override.blockedSlots)
+      ? JSON.stringify(override.blockedSlots)
+      : null;
 
-  inMemoryOverrides = updatedList;
-
-  if (ensureDataDir()) {
-    try {
-      fs.writeFileSync(AVAILABILITY_FILE, JSON.stringify(updatedList, null, 2), 'utf-8');
-    } catch (err) {
-      console.warn('[availability] Failed to write availability to disk, saved in-memory:', err);
-    }
-  }
+  await pool.execute(
+    `INSERT INTO doctor_availability (
+      id, override_date, override_type, blocked_slots, reason, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      override_date = VALUES(override_date),
+      override_type = VALUES(override_type),
+      blocked_slots = VALUES(blocked_slots),
+      reason = VALUES(reason)`,
+    [
+      override.id,
+      override.date,
+      override.type,
+      blockedSlotsJson,
+      override.reason,
+      override.createdAt,
+    ]
+  );
 
   return override;
 }
 
-export function deleteDoctorOverride(id: string): DoctorOverride[] {
-  const current = getAllDoctorOverrides();
-  deletedOverrideIds.add(id);
-
-  const filtered = current.filter((o) => o.id !== id);
-  inMemoryOverrides = filtered;
-
-  if (ensureDataDir()) {
-    try {
-      fs.writeFileSync(AVAILABILITY_FILE, JSON.stringify(filtered, null, 2), 'utf-8');
-    } catch (err) {
-      console.warn('[availability] Failed to write updated overrides to disk:', err);
-    }
-  }
-
-  return filtered;
+export async function deleteDoctorOverride(id: string): Promise<DoctorOverride[]> {
+  await ensureDatabaseSchema();
+  const pool = getPool();
+  await pool.execute(`DELETE FROM doctor_availability WHERE id = ?`, [id]);
+  return getAllDoctorOverrides();
 }
 
-/**
- * Checks if a whole date is blocked by the doctor
- */
-export function isDateBlockedByDoctor(date: string): { blocked: boolean; reason?: string } {
-  const overrides = getAllDoctorOverrides();
-  const match = overrides.find((o) => o.date === date && o.type === 'full_day');
-  if (match) {
-    return { blocked: true, reason: match.reason || 'Doctor on leave' };
+export async function isDateBlockedByDoctor(
+  date: string
+): Promise<{ blocked: boolean; reason?: string }> {
+  await ensureDatabaseSchema();
+  const pool = getPool();
+  const [rows] = await pool.execute<DoctorOverrideRow[]>(
+    `SELECT * FROM doctor_availability WHERE override_date = ? AND override_type = 'full_day' LIMIT 1`,
+    [date]
+  );
+  if (rows.length > 0) {
+    return { blocked: true, reason: rows[0].reason || 'Doctor on leave' };
   }
   return { blocked: false };
 }
 
-/**
- * Returns any blocked slots for a specific date (includes all slots if full_day)
- */
-export function getBlockedSlotsForDate(date: string, allPossibleSlots?: string[]): string[] {
-  const overrides = getAllDoctorOverrides();
-  const dateOverrides = overrides.filter((o) => o.date === date);
+export async function getBlockedSlotsForDate(
+  date: string,
+  allPossibleSlots?: string[]
+): Promise<string[]> {
+  await ensureDatabaseSchema();
+  const pool = getPool();
+  const [rows] = await pool.execute<DoctorOverrideRow[]>(
+    `SELECT * FROM doctor_availability WHERE override_date = ?`,
+    [date]
+  );
 
   const blocked = new Set<string>();
 
-  for (const o of dateOverrides) {
+  for (const row of rows) {
+    const o = mapRowToOverride(row);
     if (o.type === 'full_day') {
       if (allPossibleSlots) {
         allPossibleSlots.forEach((s) => blocked.add(s));
@@ -144,12 +130,11 @@ export function getBlockedSlotsForDate(date: string, allPossibleSlots?: string[]
   return Array.from(blocked);
 }
 
-/**
- * Returns list of dates that have full-day doctor leave
- */
-export function getDoctorBlockedDates(): { date: string; reason: string }[] {
-  const overrides = getAllDoctorOverrides();
-  return overrides
-    .filter((o) => o.type === 'full_day')
-    .map((o) => ({ date: o.date, reason: o.reason }));
+export async function getDoctorBlockedDates(): Promise<{ date: string; reason: string }[]> {
+  await ensureDatabaseSchema();
+  const pool = getPool();
+  const [rows] = await pool.execute<DoctorOverrideRow[]>(
+    `SELECT * FROM doctor_availability WHERE override_type = 'full_day' ORDER BY override_date ASC`
+  );
+  return rows.map((r) => ({ date: r.override_date, reason: r.reason }));
 }

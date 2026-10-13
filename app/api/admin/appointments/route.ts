@@ -5,15 +5,26 @@ import {
   deleteAppointment,
   Appointment,
 } from '@/lib/storage';
+import { verifyAdminRequest } from '@/lib/adminAuth';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  const auth = verifyAdminRequest(request);
+  if (!auth.authenticated) {
+    return NextResponse.json(
+      { error: auth.error || 'Unauthorized access.' },
+      { status: 401 }
+    );
+  }
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const query = searchParams.get('q')?.toLowerCase() || '';
     const statusFilter = searchParams.get('status') || 'all';
     const timeFilter = searchParams.get('time') || 'all';
 
-    let appointments = getAllAppointments();
+    let appointments = await getAllAppointments();
 
     // Sort by date descending (latest first)
     appointments.sort((a, b) => {
@@ -95,6 +106,14 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const auth = verifyAdminRequest(request);
+  if (!auth.authenticated) {
+    return NextResponse.json(
+      { error: auth.error || 'Unauthorized access.' },
+      { status: 401 }
+    );
+  }
+
   try {
     const body = await request.json();
     const { id, status, paymentStatus, paymentMethod, amount, notes } = body;
@@ -118,7 +137,7 @@ export async function PATCH(request: NextRequest) {
     if (typeof amount === 'number') updates.amount = amount;
     if (typeof notes === 'string') updates.notes = notes;
 
-    const updated = updateAppointment(id, updates);
+    const updated = await updateAppointment(id, updates);
     if (!updated) {
       return NextResponse.json(
         { error: 'Appointment not found.' },
@@ -140,6 +159,14 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const auth = verifyAdminRequest(request);
+  if (!auth.authenticated) {
+    return NextResponse.json(
+      { error: auth.error || 'Unauthorized access.' },
+      { status: 401 }
+    );
+  }
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
@@ -151,7 +178,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    deleteAppointment(id);
+    await deleteAppointment(id);
 
     return NextResponse.json({
       message: 'Appointment removed successfully.',

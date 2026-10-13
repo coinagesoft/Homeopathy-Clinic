@@ -10,13 +10,14 @@ import {
   isGoogleConnected,
   createCalendarMeeting,
   generateGoogleCalendarUrl,
-  getBookedSlotsFromCalendar,
   DOCTOR_EMAIL,
 } from '@/lib/google';
 import {
   isDateBlockedByDoctor,
   getBlockedSlotsForDate,
 } from '@/lib/availability';
+
+export const dynamic = 'force-dynamic';
 
 const ALL_CLINIC_SLOTS = [
   '09:00',
@@ -42,22 +43,28 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const doctorDateBlock = isDateBlockedByDoctor(date);
-  const doctorBlockedSlots = getBlockedSlotsForDate(date, ALL_CLINIC_SLOTS);
+  const doctorDateBlock = await isDateBlockedByDoctor(date);
+  const doctorBlockedSlots = await getBlockedSlotsForDate(date, ALL_CLINIC_SLOTS);
+  const dbBookedSlots = await getBookedSlotsForDate(date);
 
-  const localSlots = getBookedSlotsForDate(date);
-  const calendarSlots = await getBookedSlotsFromCalendar(date);
   const allBookedSlots = Array.from(
-    new Set([...localSlots, ...calendarSlots, ...doctorBlockedSlots])
+    new Set([...dbBookedSlots, ...doctorBlockedSlots])
   );
 
-  return NextResponse.json({
-    date,
-    bookedSlots: allBookedSlots,
-    doctorBlockedSlots,
-    isDoctorBlocked: doctorDateBlock.blocked,
-    doctorBlockReason: doctorDateBlock.reason,
-  });
+  return NextResponse.json(
+    {
+      date,
+      bookedSlots: allBookedSlots,
+      doctorBlockedSlots,
+      isDoctorBlocked: doctorDateBlock.blocked,
+      doctorBlockReason: doctorDateBlock.reason,
+    },
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
+    }
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -169,7 +176,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check doctor availability override (Full Day or Slot)
-    const doctorDateBlock = isDateBlockedByDoctor(date);
+    const doctorDateBlock = await isDateBlockedByDoctor(date);
     if (doctorDateBlock.blocked) {
       return NextResponse.json(
         {
@@ -180,7 +187,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const doctorBlockedSlots = getBlockedSlotsForDate(date, ALL_CLINIC_SLOTS);
+    const doctorBlockedSlots = await getBlockedSlotsForDate(date, ALL_CLINIC_SLOTS);
     if (doctorBlockedSlots.includes(time)) {
       return NextResponse.json(
         {
@@ -191,10 +198,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if slot is already booked (local disk or Google Calendar)
-    const localBooked = isSlotBooked(date, time);
-    const calendarSlots = await getBookedSlotsFromCalendar(date);
-    if (localBooked || calendarSlots.includes(time)) {
+    // Check if slot is already booked in MySQL DB
+    const dbBooked = await isSlotBooked(date, time);
+    if (dbBooked) {
       return NextResponse.json(
         {
           error:
@@ -241,17 +247,15 @@ export async function POST(request: NextRequest) {
       } catch (calError) {
         console.error('Google Calendar event creation failed:', calError);
         calendarError = calError instanceof Error ? calError.message : 'Calendar sync failed';
-        // Fallback meet link if Google Calendar call throws an error
         meetLink = `https://meet.google.com/lookup/aarav-${appointmentId.slice(0, 8)}`;
         newAppointment.meetLink = meetLink;
       }
     } else {
-      // Fallback Google Meet link when Google OAuth is not yet completed
       meetLink = `https://meet.google.com/lookup/aarav-${appointmentId.slice(0, 8)}`;
       newAppointment.meetLink = meetLink;
     }
 
-    saveAppointment(newAppointment);
+    await saveAppointment(newAppointment);
 
     const googleCalendarUrl = generateGoogleCalendarUrl(newAppointment);
     const eventCreated = Boolean(googleEventId);

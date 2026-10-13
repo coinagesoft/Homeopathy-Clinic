@@ -1,6 +1,6 @@
-import fs from 'fs';
-import path from 'path';
+import type { RowDataPacket } from 'mysql2/promise';
 import type { Credentials } from 'google-auth-library';
+import { getPool, ensureDatabaseSchema } from './db';
 
 export interface Appointment {
   id: string;
@@ -25,177 +25,288 @@ export interface Appointment {
   notes?: string;
 }
 
-// In Vercel / serverless runtime, process.cwd() is read-only (/var/task).
-// Only /tmp is writable. In local development, we use local data/ folder.
-const isServerless = Boolean(
-  process.env.VERCEL ||
-  process.env.AWS_LAMBDA_FUNCTION_NAME ||
-  process.env.NOW_REGION
-);
+interface AppointmentRow extends RowDataPacket {
+  id: string;
+  full_name: string;
+  phone: string;
+  email: string;
+  age: number;
+  reason: string;
+  appointment_date: string;
+  appointment_time: string;
+  message: string | null;
+  meet_link: string | null;
+  google_event_id: string | null;
+  status: 'confirmed' | 'completed' | 'cancelled' | 'no-show';
+  payment_status: 'paid' | 'pending' | 'refunded';
+  amount: string | number;
+  payment_method: 'UPI' | 'Card' | 'NetBanking' | 'Cash' | 'Razorpay' | 'Pending';
+  payment_id: string | null;
+  paid_at: string | null;
+  notes: string | null;
+  created_at: string;
+}
 
-const DATA_DIR = isServerless
-  ? path.join('/tmp', 'clinic-data')
-  : path.join(process.cwd(), 'data');
-
-const APPOINTMENTS_FILE = path.join(DATA_DIR, 'appointments.json');
-const BUNDLED_APPOINTMENTS_FILE = path.join(process.cwd(), 'data', 'appointments.json');
-const TOKENS_FILE = path.join(DATA_DIR, 'google-tokens.json');
-
-// In-memory fallback stores to guarantee zero crashes on read-only environments
-let inMemoryAppointments: Appointment[] = [];
-let deletedAppointmentIds = new Set<string>();
 let inMemoryTokens: Credentials | null = null;
 
-function ensureDataDir(): boolean {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    return true;
-  } catch (err) {
-    console.warn(`[storage] Unable to create ${DATA_DIR}:`, err);
-    return false;
-  }
-}
-
-function normalizeAppointment(appt: Appointment): Appointment {
+function mapRowToAppointment(row: AppointmentRow): Appointment {
   return {
-    ...appt,
-    status: appt.status || 'confirmed',
-    paymentStatus: appt.paymentStatus || 'paid',
-    amount: typeof appt.amount === 'number' ? appt.amount : 800,
-    paymentMethod: appt.paymentMethod || 'UPI',
-    paymentId: appt.paymentId || `PAY-${appt.id.slice(0, 8).toUpperCase()}`,
-    paidAt: appt.paidAt || appt.createdAt,
-    notes: appt.notes || '',
+    id: row.id,
+    fullName: row.full_name,
+    phone: row.phone,
+    email: row.email,
+    age: Number(row.age),
+    reason: row.reason,
+    date: row.appointment_date,
+    time: row.appointment_time,
+    message: row.message || '',
+    meetLink: row.meet_link || undefined,
+    googleEventId: row.google_event_id || undefined,
+    createdAt: row.created_at,
+    status: row.status || 'confirmed',
+    paymentStatus: row.payment_status || 'paid',
+    amount: row.amount !== undefined && row.amount !== null ? Number(row.amount) : 800,
+    paymentMethod: row.payment_method || 'Razorpay',
+    paymentId: row.payment_id || `PAY-${row.id.slice(0, 8).toUpperCase()}`,
+    paidAt: row.paid_at || row.created_at,
+    notes: row.notes || '',
   };
 }
 
-export function getAllAppointments(): Appointment[] {
-  let list: Appointment[] = [];
-  if (ensureDataDir()) {
-    try {
-      let fileToRead = APPOINTMENTS_FILE;
-      // In serverless, if /tmp doesn't have the file yet, read bundled repository file
-      if (!fs.existsSync(fileToRead) && fs.existsSync(BUNDLED_APPOINTMENTS_FILE)) {
-        fileToRead = BUNDLED_APPOINTMENTS_FILE;
-      }
+async function syncPatientAndPaymentTables(appt: Appointment): Promise<void> {
+  const pool = getPool();
+  const cleanEmail = appt.email.trim().toLowerCase();
+  const nowIso = new Date().toISOString();
+  const paymentId = appt.paymentId || `PAY-${appt.id.slice(0, 8).toUpperCase()}`;
+  const amount = typeof appt.amount === 'number' ? appt.amount : 800;
+  const paymentMethod = appt.paymentMethod || 'Razorpay';
+  const paymentStatus = appt.paymentStatus || 'paid';
+  const paidAt = appt.paidAt || appt.createdAt || nowIso;
 
-      if (fs.existsSync(fileToRead)) {
-        const raw = fs.readFileSync(fileToRead, 'utf-8');
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          // Merge disk appointments with any runtime additions
-          const ids = new Set(parsed.map((a: Appointment) => a.id));
-          const additions = inMemoryAppointments.filter(
-            (a) => !ids.has(a.id) && !deletedAppointmentIds.has(a.id)
-          );
-          list = [...parsed, ...additions];
-        } else {
-          list = inMemoryAppointments.filter((a) => !deletedAppointmentIds.has(a.id));
-        }
-      } else {
-        list = inMemoryAppointments.filter((a) => !deletedAppointmentIds.has(a.id));
-      }
-    } catch (err) {
-      console.warn('[storage] Failed to read appointments file, using in-memory fallback:', err);
-      list = inMemoryAppointments.filter((a) => !deletedAppointmentIds.has(a.id));
-    }
-  } else {
-    list = inMemoryAppointments.filter((a) => !deletedAppointmentIds.has(a.id));
-  }
-  return list
-    .filter((a) => !deletedAppointmentIds.has(a.id))
-    .map(normalizeAppointment);
+  // 1. Upsert into payments table
+  await pool.execute(
+    `INSERT INTO payments (
+      payment_id, appointment_id, patient_name, patient_email, patient_phone,
+      amount, payment_method, payment_status, paid_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      patient_name = VALUES(patient_name),
+      patient_email = VALUES(patient_email),
+      patient_phone = VALUES(patient_phone),
+      amount = VALUES(amount),
+      payment_method = VALUES(payment_method),
+      payment_status = VALUES(payment_status),
+      paid_at = VALUES(paid_at)`,
+    [
+      paymentId,
+      appt.id,
+      appt.fullName,
+      cleanEmail,
+      appt.phone,
+      amount,
+      paymentMethod,
+      paymentStatus,
+      paidAt,
+    ]
+  );
+
+  // 2. Recalculate aggregate patient stats from appointments table for this email
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT
+      COUNT(*) AS totalBookings,
+      COALESCE(SUM(CASE WHEN payment_status = 'paid' AND status != 'cancelled' THEN amount ELSE 0 END), 0) AS totalPaid,
+      MAX(appointment_date) AS lastVisitDate
+    FROM appointments
+    WHERE LOWER(email) = ?`,
+    [cleanEmail]
+  );
+
+  const stats = rows[0] || { totalBookings: 1, totalPaid: amount, lastVisitDate: appt.date };
+
+  await pool.execute(
+    `INSERT INTO patients (
+      email, full_name, phone, age, total_bookings, total_paid, last_visit_date, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      full_name = VALUES(full_name),
+      phone = VALUES(phone),
+      age = VALUES(age),
+      total_bookings = VALUES(total_bookings),
+      total_paid = VALUES(total_paid),
+      last_visit_date = VALUES(last_visit_date),
+      updated_at = VALUES(updated_at)`,
+    [
+      cleanEmail,
+      appt.fullName,
+      appt.phone,
+      appt.age,
+      Number(stats.totalBookings) || 1,
+      Number(stats.totalPaid) || 0,
+      stats.lastVisitDate || appt.date,
+      appt.createdAt || nowIso,
+      nowIso,
+    ]
+  );
 }
 
-export function getAppointmentById(id: string): Appointment | null {
-  const all = getAllAppointments();
-  return all.find((a) => a.id === id) || null;
+export async function getAllAppointments(): Promise<Appointment[]> {
+  await ensureDatabaseSchema();
+  const pool = getPool();
+  const [rows] = await pool.execute<AppointmentRow[]>(
+    `SELECT * FROM appointments ORDER BY appointment_date DESC, appointment_time DESC, created_at DESC`
+  );
+  return rows.map(mapRowToAppointment);
 }
 
-export function saveAppointment(appointment: Appointment): Appointment {
-  const normalized = normalizeAppointment(appointment);
-  inMemoryAppointments = [
-    ...inMemoryAppointments.filter((a) => a.id !== normalized.id),
-    normalized,
-  ];
-
-  if (ensureDataDir()) {
-    try {
-      const appointments = getAllAppointments();
-      const deduped = Array.from(
-        new Map(appointments.map((a) => [a.id, a])).values()
-      );
-      fs.writeFileSync(APPOINTMENTS_FILE, JSON.stringify(deduped, null, 2), 'utf-8');
-    } catch (err) {
-      console.warn('[storage] Failed to write appointment to disk, saved in-memory:', err);
-    }
-  }
-
-  return normalized;
+export async function getAppointmentById(id: string): Promise<Appointment | null> {
+  await ensureDatabaseSchema();
+  const pool = getPool();
+  const [rows] = await pool.execute<AppointmentRow[]>(
+    `SELECT * FROM appointments WHERE id = ? LIMIT 1`,
+    [id]
+  );
+  if (rows.length === 0) return null;
+  return mapRowToAppointment(rows[0]);
 }
 
-export function updateAppointment(id: string, updates: Partial<Appointment>): Appointment | null {
-  const all = getAllAppointments();
-  const index = all.findIndex((a) => a.id === id);
-  if (index === -1) return null;
+export async function saveAppointment(appointment: Appointment): Promise<Appointment> {
+  await ensureDatabaseSchema();
+  const pool = getPool();
+
+  const status = appointment.status || 'confirmed';
+  const paymentStatus = appointment.paymentStatus || 'paid';
+  const amount = typeof appointment.amount === 'number' ? appointment.amount : 800;
+  const paymentMethod = appointment.paymentMethod || 'Razorpay';
+  const paymentId = appointment.paymentId || `PAY-${appointment.id.slice(0, 8).toUpperCase()}`;
+  const paidAt = appointment.paidAt || appointment.createdAt;
+  const notes = appointment.notes || '';
+
+  await pool.execute(
+    `INSERT INTO appointments (
+      id, full_name, phone, email, age, reason,
+      appointment_date, appointment_time, message, meet_link, google_event_id,
+      status, payment_status, amount, payment_method, payment_id, paid_at, notes, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      full_name = VALUES(full_name),
+      phone = VALUES(phone),
+      email = VALUES(email),
+      age = VALUES(age),
+      reason = VALUES(reason),
+      appointment_date = VALUES(appointment_date),
+      appointment_time = VALUES(appointment_time),
+      message = VALUES(message),
+      meet_link = VALUES(meet_link),
+      google_event_id = VALUES(google_event_id),
+      status = VALUES(status),
+      payment_status = VALUES(payment_status),
+      amount = VALUES(amount),
+      payment_method = VALUES(payment_method),
+      payment_id = VALUES(payment_id),
+      paid_at = VALUES(paid_at),
+      notes = VALUES(notes)`,
+    [
+      appointment.id,
+      appointment.fullName,
+      appointment.phone,
+      appointment.email,
+      appointment.age,
+      appointment.reason,
+      appointment.date,
+      appointment.time,
+      appointment.message || '',
+      appointment.meetLink || null,
+      appointment.googleEventId || null,
+      status,
+      paymentStatus,
+      amount,
+      paymentMethod,
+      paymentId,
+      paidAt,
+      notes,
+      appointment.createdAt,
+    ]
+  );
+
+  const saved: Appointment = {
+    ...appointment,
+    status,
+    paymentStatus,
+    amount,
+    paymentMethod,
+    paymentId,
+    paidAt,
+    notes,
+  };
+
+  await syncPatientAndPaymentTables(saved);
+  return saved;
+}
+
+export async function updateAppointment(
+  id: string,
+  updates: Partial<Appointment>
+): Promise<Appointment | null> {
+  await ensureDatabaseSchema();
+  const existing = await getAppointmentById(id);
+  if (!existing) return null;
 
   const updated: Appointment = {
-    ...all[index],
+    ...existing,
     ...updates,
-    id, // preserve ID
+    id,
   };
 
-  all[index] = updated;
-  inMemoryAppointments = [
-    ...inMemoryAppointments.filter((a) => a.id !== id),
-    updated,
-  ];
-
-  if (ensureDataDir()) {
-    try {
-      fs.writeFileSync(APPOINTMENTS_FILE, JSON.stringify(all, null, 2), 'utf-8');
-    } catch (err) {
-      console.warn('[storage] Failed to update appointment on disk:', err);
-    }
-  }
-
+  await saveAppointment(updated);
   return updated;
 }
 
-export function deleteAppointment(id: string): boolean {
-  deletedAppointmentIds.add(id);
-  inMemoryAppointments = inMemoryAppointments.filter((a) => a.id !== id);
+export async function deleteAppointment(id: string): Promise<boolean> {
+  await ensureDatabaseSchema();
+  const pool = getPool();
+  const existing = await getAppointmentById(id);
 
-  if (ensureDataDir()) {
-    try {
-      if (fs.existsSync(APPOINTMENTS_FILE)) {
-        const all = getAllAppointments().filter((a) => a.id !== id);
-        fs.writeFileSync(APPOINTMENTS_FILE, JSON.stringify(all, null, 2), 'utf-8');
+  await pool.execute(`DELETE FROM payments WHERE appointment_id = ?`, [id]);
+  await pool.execute(`DELETE FROM appointments WHERE id = ?`, [id]);
+
+  if (existing) {
+    const cleanEmail = existing.email.trim().toLowerCase();
+    const [remaining] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) AS cnt FROM appointments WHERE LOWER(email) = ?`,
+      [cleanEmail]
+    );
+    if (!remaining[0] || Number(remaining[0].cnt) === 0) {
+      await pool.execute(`DELETE FROM patients WHERE email = ?`, [cleanEmail]);
+    } else {
+      const [latestRows] = await pool.execute<AppointmentRow[]>(
+        `SELECT * FROM appointments WHERE LOWER(email) = ? ORDER BY appointment_date DESC LIMIT 1`,
+        [cleanEmail]
+      );
+      if (latestRows.length > 0) {
+        await syncPatientAndPaymentTables(mapRowToAppointment(latestRows[0]));
       }
-      return true;
-    } catch (err) {
-      console.warn('[storage] Failed to delete appointment:', err);
     }
   }
+
   return true;
 }
 
-export function getBookedSlotsForDate(date: string): string[] {
-  const appointments = getAllAppointments();
-  return appointments
-    .filter((appt) => appt.date === date)
-    .map((appt) => appt.time);
+export async function getBookedSlotsForDate(date: string): Promise<string[]> {
+  await ensureDatabaseSchema();
+  const pool = getPool();
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT appointment_time FROM appointments WHERE appointment_date = ? AND status != 'cancelled'`,
+    [date]
+  );
+  return rows.map((r) => String(r.appointment_time));
 }
 
-export function isSlotBooked(date: string, time: string): boolean {
-  const booked = getBookedSlotsForDate(date);
+export async function isSlotBooked(date: string, time: string): Promise<boolean> {
+  const booked = await getBookedSlotsForDate(date);
   return booked.includes(time);
 }
 
 export function getGoogleTokens(): Credentials | null {
-  // 1. Check environment variable first (primary recommended configuration)
   if (process.env.GOOGLE_REFRESH_TOKEN) {
     const refreshToken = process.env.GOOGLE_REFRESH_TOKEN.trim().replace(/^["']|["']$/g, '');
     let tokens: Credentials = {
@@ -203,37 +314,13 @@ export function getGoogleTokens(): Credentials | null {
       token_type: 'Bearer',
     };
     if (inMemoryTokens?.access_token) {
-      tokens = { ...tokens, ...inMemoryTokens };
-    }
-    if (ensureDataDir()) {
-      try {
-        if (fs.existsSync(TOKENS_FILE)) {
-          const raw = fs.readFileSync(TOKENS_FILE, 'utf-8');
-          const parsed = JSON.parse(raw);
-          tokens = { ...tokens, ...parsed, refresh_token: refreshToken };
-        }
-      } catch {
-        // ignore disk cache read error
-      }
+      tokens = { ...tokens, ...inMemoryTokens, refresh_token: refreshToken };
     }
     return tokens;
   }
 
-  // 2. Check in-memory store
   if (inMemoryTokens) {
     return inMemoryTokens;
-  }
-
-  // 3. Check disk cache
-  if (ensureDataDir()) {
-    try {
-      if (fs.existsSync(TOKENS_FILE)) {
-        const raw = fs.readFileSync(TOKENS_FILE, 'utf-8');
-        return JSON.parse(raw);
-      }
-    } catch (err) {
-      console.warn('[storage] Failed to read tokens from disk:', err);
-    }
   }
 
   return null;
@@ -247,30 +334,53 @@ export function saveGoogleTokens(tokens: Credentials): void {
     refresh_token:
       tokens.refresh_token ||
       existing?.refresh_token ||
-      (process.env.GOOGLE_REFRESH_TOKEN ? process.env.GOOGLE_REFRESH_TOKEN.trim().replace(/^["']|["']$/g, '') : undefined),
+      (process.env.GOOGLE_REFRESH_TOKEN
+        ? process.env.GOOGLE_REFRESH_TOKEN.trim().replace(/^["']|["']$/g, '')
+        : undefined),
   };
   inMemoryTokens = merged;
 
-  if (ensureDataDir()) {
-    try {
-      fs.writeFileSync(TOKENS_FILE, JSON.stringify(merged, null, 2), 'utf-8');
-    } catch (err) {
-      console.warn('[storage] Could not save tokens to disk, stored in memory:', err);
-    }
-  }
+  // Persist asynchronously to MySQL google_oauth_tokens table
+  const doctorEmail = process.env.DOCTOR_EMAIL || 'shivrajrbabar@gmail.com';
+  ensureDatabaseSchema()
+    .then(() => {
+      const pool = getPool();
+      return pool.execute(
+        `INSERT INTO google_oauth_tokens (
+          id, doctor_email, access_token, refresh_token, token_type, expiry_date, updated_at
+        ) VALUES (1, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          doctor_email = VALUES(doctor_email),
+          access_token = VALUES(access_token),
+          refresh_token = VALUES(refresh_token),
+          token_type = VALUES(token_type),
+          expiry_date = VALUES(expiry_date),
+          updated_at = VALUES(updated_at)`,
+        [
+          doctorEmail,
+          merged.access_token || null,
+          merged.refresh_token || null,
+          merged.token_type || 'Bearer',
+          merged.expiry_date || null,
+          new Date().toISOString(),
+        ]
+      );
+    })
+    .catch((err) => {
+      console.warn('[db] Could not persist Google OAuth tokens to MySQL:', err);
+    });
 }
 
 export function clearGoogleTokens(): void {
   inMemoryTokens = null;
-  if (ensureDataDir()) {
-    try {
-      if (fs.existsSync(TOKENS_FILE)) {
-        fs.unlinkSync(TOKENS_FILE);
-      }
-    } catch {
-      // ignore unlink error
-    }
-  }
+  ensureDatabaseSchema()
+    .then(() => {
+      const pool = getPool();
+      return pool.execute(`DELETE FROM google_oauth_tokens WHERE id = 1`);
+    })
+    .catch(() => {
+      // ignore error
+    });
 }
 
 export interface GoogleConfig {
@@ -279,12 +389,10 @@ export interface GoogleConfig {
 }
 
 export function getGoogleConfig(): GoogleConfig | null {
-  // Always read from environment variables first
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     const clientId = process.env.GOOGLE_CLIENT_ID.trim().replace(/^["']|["']$/g, '');
     let clientSecret = process.env.GOOGLE_CLIENT_SECRET.trim().replace(/^["']|["']$/g, '');
 
-    // Auto-heal base64URL case typo (lowercase 'l' -> uppercase 'L')
     if (clientSecret.includes('Rm9_DwlZwTf')) {
       clientSecret = clientSecret.replace('Rm9_DwlZwTf', 'Rm9_DwLZwTf');
     }
@@ -298,7 +406,6 @@ export function getGoogleConfig(): GoogleConfig | null {
 }
 
 export function saveGoogleConfig(config: GoogleConfig): void {
-  // Populate process.env for current process runtime
   process.env.GOOGLE_CLIENT_ID = config.clientId;
   process.env.GOOGLE_CLIENT_SECRET = config.clientSecret;
 }
