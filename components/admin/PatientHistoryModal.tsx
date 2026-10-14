@@ -1,7 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Appointment } from '@/lib/storage';
+import {
+  IconPhone,
+  IconMail,
+  IconPencil,
+  IconCopy,
+  IconCheck,
+  IconVideo,
+  IconBuilding,
+  IconStethoscope,
+  IconRefresh,
+} from './AdminIcons';
 
 interface PatientHistoryModalProps {
   patient: {
@@ -13,7 +24,10 @@ interface PatientHistoryModalProps {
   } | null;
   onClose: () => void;
   onUpdateNotes: (appointmentId: string, notes: string) => Promise<void>;
-  onUpdateStatus: (appointmentId: string, status: 'confirmed' | 'completed' | 'cancelled' | 'no-show') => Promise<void>;
+  onUpdateStatus?: (
+    appointmentId: string,
+    status: 'confirmed' | 'completed' | 'cancelled' | 'no-show'
+  ) => Promise<void>;
   onReschedule?: (appt: Appointment) => void;
 }
 
@@ -38,12 +52,22 @@ export default function PatientHistoryModal({
   patient,
   onClose,
   onUpdateNotes,
-  onUpdateStatus,
-  onReschedule,
 }: PatientHistoryModalProps) {
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [noteContent, setNoteContent] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [copiedApptId, setCopiedApptId] = useState<string | null>(null);
+
+  // Close drawer on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   if (!patient) return null;
 
@@ -59,7 +83,7 @@ export default function PatientHistoryModal({
   const handleSaveNotes = async (apptId: string) => {
     setSavingNotes(true);
     try {
-      await onUpdateNotes(apptId, noteContent);
+      await onUpdateNotes(apptId, noteContent.trim());
       setEditingNotesId(null);
     } catch (err) {
       console.error('Failed to save notes:', err);
@@ -68,184 +92,302 @@ export default function PatientHistoryModal({
     }
   };
 
+  const handleCopyNotes = async (apptId: string, notesText: string) => {
+    if (!notesText) return;
+    try {
+      await navigator.clipboard.writeText(notesText);
+      setCopiedApptId(apptId);
+      setTimeout(() => setCopiedApptId(null), 2000);
+    } catch {
+      // ignore clipboard error
+    }
+  };
+
   return (
-    <div className="admin-modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="admin-modal-container" onClick={(e) => e.stopPropagation()}>
-        {/* Modal Header */}
-        <div className="modal-header">
-          <div className="modal-patient-info">
-            <div className="patient-avatar-circle">
+    <div
+      className="admin-drawer-overlay"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="patient-drawer-title"
+    >
+      <aside
+        className="admin-drawer-panel admin-drawer-panel-patient"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Drawer Header */}
+        <header className="drawer-header patient-drawer-header">
+          <div className="patient-drawer-top">
+            <div className="patient-avatar-circle patient-drawer-avatar">
               {patient.fullName.slice(0, 2).toUpperCase()}
             </div>
-            <div>
-              <h2 className="modal-patient-name">{patient.fullName}</h2>
-              <p className="modal-patient-sub">
-                Age: {patient.age || '—'} &bull; Phone: {patient.phone} &bull; Email: {patient.email}
-              </p>
+            <div className="patient-drawer-identity">
+              <div className="patient-drawer-name-row">
+                <h3 id="patient-drawer-title" className="patient-drawer-name">
+                  {patient.fullName}
+                </h3>
+                {patient.age && (
+                  <span className="patient-drawer-age-pill">Age: {patient.age}</span>
+                )}
+              </div>
+              <div className="patient-drawer-contacts">
+                {patient.phone && (
+                  <a
+                    href={`tel:${patient.phone}`}
+                    className="patient-contact-chip"
+                    title="Call patient"
+                  >
+                    <IconPhone size={12} />
+                    <span>{patient.phone}</span>
+                  </a>
+                )}
+                {patient.email && (
+                  <a
+                    href={`mailto:${patient.email}`}
+                    className="patient-contact-chip"
+                    title="Send email"
+                  >
+                    <IconMail size={12} />
+                    <span className="truncate-text">{patient.email}</span>
+                  </a>
+                )}
+              </div>
             </div>
           </div>
 
-          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close modal">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <button
+            type="button"
+            className="btn-drawer-close"
+            onClick={onClose}
+            aria-label="Close patient record"
+            title="Close (Esc)"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
-        </div>
+        </header>
 
         {/* Patient Key Metrics Banner */}
-        <div className="modal-kpi-banner">
-          <div className="modal-kpi-item">
-            <span>Total Visits</span>
-            <strong>{patient.appointments.length} Consultations</strong>
+        <div className="patient-drawer-kpis">
+          <div className="patient-kpi-tile">
+            <span className="kpi-tile-label">Total Visits</span>
+            <strong className="kpi-tile-val">
+              {patient.appointments.length} Consult{patient.appointments.length === 1 ? '' : 's'}
+            </strong>
           </div>
-          <div className="modal-kpi-item">
-            <span>Lifetime Revenue</span>
-            <strong>₹{totalSpent.toLocaleString('en-IN')}</strong>
+          <div className="patient-kpi-tile">
+            <span className="kpi-tile-label">Lifetime Spend</span>
+            <strong className="kpi-tile-val highlight-green">
+              ₹{totalSpent.toLocaleString('en-IN')}
+            </strong>
           </div>
-          <div className="modal-kpi-item">
-            <span>First Consultation</span>
-            <strong>{formatReadableDate(patient.appointments[patient.appointments.length - 1]?.date)}</strong>
+          <div className="patient-kpi-tile">
+            <span className="kpi-tile-label">First Visit</span>
+            <span className="kpi-tile-date">
+              {formatReadableDate(patient.appointments[patient.appointments.length - 1]?.date)}
+            </span>
           </div>
-          <div className="modal-kpi-item">
-            <span>Latest Visit</span>
-            <strong>{formatReadableDate(patient.appointments[0]?.date)}</strong>
+          <div className="patient-kpi-tile">
+            <span className="kpi-tile-label">Latest Visit</span>
+            <span className="kpi-tile-date highlight-accent">
+              {formatReadableDate(patient.appointments[0]?.date)}
+            </span>
           </div>
         </div>
 
-        {/* Timeline of Consultations */}
-        <div className="modal-content-body">
-          <h3 className="timeline-title">Consultation &amp; Prescription History</h3>
+        {/* Consultation & Clinical Prescription History */}
+        <div className="patient-drawer-body">
+          <div className="patient-drawer-timeline-head">
+            <div className="timeline-title-wrap">
+              <IconStethoscope size={18} />
+              <h4>Consultation &amp; Clinical Notes History</h4>
+            </div>
+            <span className="timeline-counter-badge">
+              {patient.appointments.length} Session{patient.appointments.length === 1 ? '' : 's'}
+            </span>
+          </div>
 
-          <div className="patient-timeline">
+          <div className="patient-drawer-timeline">
             {patient.appointments.map((appt, idx) => {
               const isEditing = editingNotesId === appt.id;
+              const isCopied = copiedApptId === appt.id;
 
               return (
-                <div key={appt.id} className="timeline-entry">
-                  <div className="timeline-point">
-                    <span className="point-number">{patient.appointments.length - idx}</span>
+                <div key={appt.id} className="patient-history-card">
+                  {/* Card Header Row */}
+                  <div className="history-card-header">
+                    <div className="history-session-badge">
+                      #{patient.appointments.length - idx}
+                    </div>
+
+                    <div className="history-datetime">
+                      <strong>{formatReadableDate(appt.date)}</strong>
+                      <span className="history-time-tag">{appt.time}</span>
+                    </div>
+
+                    {/* Mode Tag */}
+                    {appt.consultationType !== 'offline' && appt.meetLink ? (
+                      <a
+                        href={appt.meetLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="history-mode-pill mode-online"
+                        title="Join Google Meet"
+                      >
+                        <IconVideo size={12} />
+                        <span>Online Meet</span>
+                      </a>
+                    ) : (
+                      <span className="history-mode-pill mode-clinic" title="In-Clinic Visit">
+                        <IconBuilding size={12} />
+                        <span>In-Clinic</span>
+                      </span>
+                    )}
+
+                    {/* Payment Pill */}
+                    <span className={`payment-pill pill-${appt.paymentStatus || 'paid'}`}>
+                      {appt.paymentStatus === 'paid'
+                        ? `Paid ₹${appt.amount || 800}`
+                        : appt.paymentStatus === 'refunded'
+                        ? 'Refunded'
+                        : 'Pending'}
+                    </span>
                   </div>
 
-                  <div className="timeline-card">
-                    <div className="timeline-card-head">
-                      <div className="timeline-info-col">
-                        <div className="timeline-date">
-                          <strong>{formatReadableDate(appt.date)}</strong> at <span>{appt.time}</span>
-                        </div>
-                        <div className="timeline-reason">{appt.reason}</div>
+                  {/* Health Concern Reason & Patient Message */}
+                  <div className="history-card-reason">
+                    <span className="reason-label">Health Concern:</span>
+                    <span className="reason-pill">{appt.reason}</span>
+                  </div>
+
+                  {appt.message && (
+                    <div className="history-patient-message">
+                      <em>Patient Query:</em> &ldquo;{appt.message}&rdquo;
+                    </div>
+                  )}
+
+                  {/* Doctor Clinical & Prescription Notes Card */}
+                  <div className="clinical-notes-card">
+                    <div className="clinical-notes-header">
+                      <div className="notes-heading-wrap">
+                        <span className="notes-icon-box" aria-hidden="true">
+                          <IconStethoscope size={14} />
+                        </span>
+                        <strong>Doctor Clinical &amp; Rx Notes</strong>
+                        {appt.notes && !isEditing && (
+                          <span className="notes-saved-tag">Recorded</span>
+                        )}
                       </div>
 
-                      <div className="timeline-badges">
-                        <select
-                          className={`status-select status-${appt.status || 'confirmed'}`}
-                          value={appt.status || 'confirmed'}
-                          onChange={(e) =>
-                            onUpdateStatus(
-                              appt.id,
-                              e.target.value as 'confirmed' | 'completed' | 'cancelled' | 'no-show'
-                            )
-                          }
-                        >
-                          <option value="confirmed">Confirmed</option>
-                          <option value="completed">Completed</option>
-                          <option value="cancelled">Cancelled</option>
-                          <option value="no-show">No Show</option>
-                        </select>
-
-                        <span className={`payment-pill pill-${appt.paymentStatus || 'paid'}`}>
-                          {appt.paymentStatus === 'paid'
-                            ? `Paid ₹${appt.amount || 800}`
-                            : appt.paymentStatus === 'refunded'
-                            ? 'Refunded'
-                            : 'Pending'}
-                        </span>
-
-                        {onReschedule && appt.status !== 'cancelled' && (
+                      <div className="notes-header-actions">
+                        {appt.notes && !isEditing && (
                           <button
                             type="button"
-                            className="action-btn-reschedule"
-                            style={{ padding: '4px 10px', fontSize: '12px' }}
-                            onClick={() => onReschedule(appt)}
-                            title="Reschedule this appointment"
+                            className="btn-copy-note"
+                            onClick={() => handleCopyNotes(appt.id, appt.notes || '')}
+                            title="Copy prescription notes to clipboard"
                           >
-                            Reschedule
+                            {isCopied ? (
+                              <>
+                                <IconCheck size={12} />
+                                <span>Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <IconCopy size={12} />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+
+                        {!isEditing && (
+                          <button
+                            type="button"
+                            className="btn-edit-note"
+                            onClick={() => startEditNotes(appt)}
+                          >
+                            <IconPencil size={12} />
+                            <span>{appt.notes ? 'Edit Notes' : '+ Add Clinical Notes'}</span>
                           </button>
                         )}
                       </div>
                     </div>
 
-                    {appt.meetLink && (
-                      <div className="timeline-meet-wrap">
-                        <a
-                          href={appt.meetLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="meet-link-btn"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polygon points="23 7 16 12 23 17 23 7"></polygon>
-                            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                          </svg>
-                          Open Google Meet
-                        </a>
-                      </div>
-                    )}
+                    {isEditing ? (
+                      /* Interactive Notes Editor */
+                      <div className="clinical-notes-editor">
 
-                    {appt.message && (
-                      <p className="timeline-patient-msg">
-                        <em>Patient Message:</em> &ldquo;{appt.message}&rdquo;
-                      </p>
-                    )}
+                        <textarea
+                          value={noteContent}
+                          onChange={(e) => setNoteContent(e.target.value)}
+                          placeholder="Enter diagnosis, clinical observation, constitutional remedies (e.g., Pulsatilla 200C - 4 pills morning), dietary guidance, and follow-up timeline..."
+                          rows={4}
+                          className="clinical-notes-textarea"
+                          autoFocus
+                        />
 
-                    {/* Doctor Clinical Notes */}
-                    <div className="timeline-notes-box">
-                      <div className="notes-box-head">
-                        <strong>Doctor Clinical &amp; Rx Notes:</strong>
-                        {!isEditing && (
-                          <button
-                            type="button"
-                            className="notes-edit-btn"
-                            onClick={() => startEditNotes(appt)}
-                          >
-                            {appt.notes ? 'Edit Notes' : '+ Add Clinical Notes'}
-                          </button>
-                        )}
-                      </div>
+                        <div className="clinical-notes-footer">
+                          <span className="notes-char-count">
+                            {noteContent.length} characters
+                          </span>
 
-                      {isEditing ? (
-                        <div className="notes-editor">
-                          <textarea
-                            value={noteContent}
-                            onChange={(e) => setNoteContent(e.target.value)}
-                            placeholder="Enter diagnosis notes, remedies prescribed (e.g., Pulsatilla 200C), dietary guidance or follow-up schedule..."
-                            rows={3}
-                            className="notes-textarea"
-                          />
-                          <div className="notes-actions">
+                          <div className="notes-btn-group">
                             <button
                               type="button"
-                              className="btn-save-notes"
+                              className="btn-save-clinical-notes"
                               disabled={savingNotes}
                               onClick={() => handleSaveNotes(appt.id)}
                             >
-                              {savingNotes ? 'Saving...' : 'Save Notes'}
+                              {savingNotes ? (
+                                <>
+                                  <IconRefresh size={12} />
+                                  <span>Saving...</span>
+                                </>
+                              ) : (
+                                <span>Save Clinical Notes</span>
+                              )}
                             </button>
                             <button
                               type="button"
-                              className="btn-cancel-notes"
+                              className="btn-cancel-clinical-notes"
+                              disabled={savingNotes}
                               onClick={() => setEditingNotesId(null)}
                             >
                               Cancel
                             </button>
                           </div>
                         </div>
-                      ) : (
-                        <p className="notes-display-text">
-                          {appt.notes || <span className="notes-placeholder">No clinical notes recorded yet for this session.</span>}
-                        </p>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      /* Rendered Notes View */
+                      <div className="clinical-notes-display">
+                        {appt.notes ? (
+                          <pre className="clinical-notes-content">{appt.notes}</pre>
+                        ) : (
+                          <div
+                            className="clinical-notes-empty"
+                            onClick={() => startEditNotes(appt)}
+                            role="button"
+                            tabIndex={0}
+                          >
+                            <span>No clinical notes recorded yet for this session.</span>
+                            <strong>Click here to add diagnosis &amp; prescription notes</strong>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -253,14 +395,19 @@ export default function PatientHistoryModal({
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className="modal-footer">
-          <button type="button" className="btn-modal-close" onClick={onClose}>
-            Close Patient Record
+        {/* Drawer Footer */}
+        <footer className="patient-drawer-footer">
+          <div className="drawer-footer-info">
+            <span>
+              Recorded for <strong>{patient.fullName}</strong> ({patient.appointments.length}{' '}
+              visits)
+            </span>
+          </div>
+          <button type="button" className="btn-patient-drawer-close" onClick={onClose}>
+            Close Record
           </button>
-        </div>
-      </div>
+        </footer>
+      </aside>
     </div>
   );
 }
-

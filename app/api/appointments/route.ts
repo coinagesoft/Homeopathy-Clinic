@@ -98,12 +98,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!phone || typeof phone !== 'string') {
+    const rawPhone = typeof phone === 'string' ? phone.trim().replace(/[\s-]/g, '') : '';
+    if (!rawPhone || !/^(\+91|91|0)?[6-9]\d{9}$/.test(rawPhone)) {
       return NextResponse.json(
-        { error: 'A valid 10-digit phone number is required.' },
+        { error: 'A valid 10-digit mobile number starting with 6, 7, 8, or 9 is required.' },
         { status: 400 }
       );
     }
+    const cleanPhone = rawPhone.replace(/^(\+91|91|0)/, '');
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     if (!email || !emailRegex.test(email)) {
@@ -222,7 +224,7 @@ export async function POST(request: NextRequest) {
     const newAppointment: Appointment = {
       id: appointmentId,
       fullName: fullName.trim(),
-      phone: phone.trim(),
+      phone: cleanPhone,
       email: email.trim(),
       age: ageNum,
       reason: reason.trim(),

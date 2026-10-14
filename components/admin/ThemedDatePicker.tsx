@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DoctorOverride } from '@/lib/availability';
+import { Appointment } from '@/lib/storage';
 
 interface ThemedDatePickerProps {
   value: string; // "YYYY-MM-DD"
@@ -9,8 +10,12 @@ interface ThemedDatePickerProps {
   minDate?: string; // "YYYY-MM-DD"
   label?: string;
   existingOverrides?: DoctorOverride[];
+  appointments?: Appointment[];
   disabled?: boolean;
   className?: string;
+  disableWeeklyOff?: boolean;
+  disableDoctorLeaves?: boolean;
+  disableFullyBooked?: boolean;
 }
 
 const MONTH_NAMES = [
@@ -36,6 +41,19 @@ const WEEKDAY_NAMES = [
   { short: 'Fri', full: 'Friday' },
   { short: 'Sat', full: 'Saturday' },
   { short: 'Sun', full: 'Sunday', isSunday: true },
+];
+
+const ALL_CLINIC_SLOTS = [
+  '09:00',
+  '09:45',
+  '10:30',
+  '11:15',
+  '12:00',
+  '12:45',
+  '15:00',
+  '15:45',
+  '16:30',
+  '17:15',
 ];
 
 function formatDateDisplay(iso: string) {
@@ -76,8 +94,12 @@ export default function ThemedDatePicker({
   minDate,
   label = 'Target Date',
   existingOverrides = [],
+  appointments = [],
   disabled = false,
   className = '',
+  disableWeeklyOff = true,
+  disableDoctorLeaves = true,
+  disableFullyBooked = true,
 }: ThemedDatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -217,6 +239,23 @@ export default function ThemedDatePicker({
 
       // Existing override check
       const override = existingOverrides.find((o) => o.date === iso);
+      const isFullDayLeave = override?.type === 'full_day';
+
+      // Check if all 10 slots are occupied/booked
+      let isFullyBooked = false;
+      if (appointments && appointments.length > 0) {
+        const activeAppts = appointments.filter((a) => a.date === iso && a.status !== 'cancelled');
+        const blockedSlots = override?.type === 'specific_slots' ? (override.blockedSlots || []) : [];
+        const occupiedSlots = new Set([...activeAppts.map((a) => a.time), ...blockedSlots]);
+        isFullyBooked = ALL_CLINIC_SLOTS.every((slot) => occupiedSlots.has(slot));
+      }
+
+      const isWeeklyOffDisabled = disableWeeklyOff && isSunday;
+      const isLeaveDisabled = disableDoctorLeaves && isFullDayLeave;
+      const isFullyBookedDisabled = disableFullyBooked && isFullyBooked;
+
+      const isDisabled =
+        isPast || isWeeklyOffDisabled || isLeaveDisabled || isFullyBookedDisabled || disabled;
 
       days.push({
         blank: false,
@@ -228,11 +267,29 @@ export default function ThemedDatePicker({
         isToday,
         isSelected,
         override,
+        isFullDayLeave,
+        isFullyBooked,
+        isWeeklyOffDisabled,
+        isLeaveDisabled,
+        isFullyBookedDisabled,
+        isDisabled,
       });
     }
 
     return days;
-  }, [viewYear, viewMonth, minDate, todayIso, value, existingOverrides]);
+  }, [
+    viewYear,
+    viewMonth,
+    minDate,
+    todayIso,
+    value,
+    existingOverrides,
+    appointments,
+    disabled,
+    disableWeeklyOff,
+    disableDoctorLeaves,
+    disableFullyBooked,
+  ]);
 
   const display = useMemo(() => formatDateDisplay(value), [value]);
 
@@ -414,6 +471,10 @@ export default function ThemedDatePicker({
                 isToday,
                 isSelected,
                 override,
+                isLeaveDisabled,
+                isWeeklyOffDisabled,
+                isFullyBookedDisabled,
+                isDisabled,
               } = item;
 
               const isOverrideActive = Boolean(override);
@@ -423,15 +484,23 @@ export default function ThemedDatePicker({
                   key={item.key}
                   type="button"
                   className={`tdp-day-cell ${isSelected ? 'selected' : ''} ${
-                    isPast ? 'past-disabled' : 'selectable'
+                    isDisabled ? 'past-disabled' : 'selectable'
                   } ${isSunday ? 'sunday' : ''} ${isToday ? 'today' : ''} ${
                     isOverrideActive ? 'has-override' : ''
-                  }`}
-                  disabled={isPast || disabled}
-                  onClick={() => iso && handleSelectDay(iso)}
+                  } ${isWeeklyOffDisabled ? 'sunday-disabled' : ''} ${
+                    isLeaveDisabled ? 'leave-disabled' : ''
+                  } ${isFullyBookedDisabled ? 'booked-disabled' : ''}`}
+                  disabled={isDisabled}
+                  onClick={() => !isDisabled && iso && handleSelectDay(iso)}
                   title={
                     isPast
                       ? 'Cannot select past date'
+                      : isWeeklyOffDisabled
+                      ? 'Clinic closed on Sundays (Weekly Off)'
+                      : isLeaveDisabled
+                      ? `Doctor on leave: ${override?.reason || 'Unavailable'}`
+                      : isFullyBookedDisabled
+                      ? 'All appointments are fully booked on this date'
                       : isOverrideActive
                       ? `Active override: ${override?.reason || 'Doctor unavailable'}`
                       : `${day} ${MONTH_NAMES[viewMonth]} ${viewYear}`
@@ -442,7 +511,19 @@ export default function ThemedDatePicker({
 
                   {isToday && <span className="tdp-badge-today">Today</span>}
 
-                  {isOverrideActive && !isSelected && (
+                  {isWeeklyOffDisabled && !isSelected && (
+                    <span className="tdp-badge-closed">Closed</span>
+                  )}
+
+                  {isLeaveDisabled && !isSelected && (
+                    <span className="tdp-badge-leave">Leave</span>
+                  )}
+
+                  {isFullyBookedDisabled && !isSelected && !isWeeklyOffDisabled && !isLeaveDisabled && (
+                    <span className="tdp-badge-full">Full</span>
+                  )}
+
+                  {isOverrideActive && !isLeaveDisabled && !isSelected && (
                     <span
                       className={`tdp-override-dot ${
                         override?.type === 'full_day' ? 'dot-full' : 'dot-slots'

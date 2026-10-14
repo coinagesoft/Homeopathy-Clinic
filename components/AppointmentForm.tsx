@@ -341,9 +341,8 @@ export default function AppointmentForm() {
 
       case 'phone': {
         if (!trimmed) return 'Please enter your phone number.';
-        const digits = trimmed.replace(/[\s-]/g, '');
-        if (!/^(\+91|91|0)?[6-9]\d{9}$/.test(digits))
-          return 'Please enter a valid 10-digit mobile number.';
+        if (!/^[6-9]\d{9}$/.test(trimmed))
+          return 'Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.';
         return '';
       }
 
@@ -395,9 +394,10 @@ export default function AppointmentForm() {
   ) => {
     const { name, value } = e.target;
     const fieldName = name as keyof FormData;
+    const nextValue = fieldName === 'phone' ? value.replace(/\D/g, '').slice(0, 10) : value;
 
     setFormData((prev) => {
-      const next = { ...prev, [fieldName]: value };
+      const next = { ...prev, [fieldName]: nextValue };
       if (fieldName === 'date') {
         next.time = '';
       }
@@ -405,7 +405,7 @@ export default function AppointmentForm() {
     });
 
     if (errors[fieldName]) {
-      const errorMsg = validateField(fieldName, value);
+      const errorMsg = validateField(fieldName, nextValue);
       setErrors((prev) => ({ ...prev, [fieldName]: errorMsg }));
     }
   };
@@ -749,7 +749,9 @@ export default function AppointmentForm() {
                 id="phone"
                 name="phone"
                 autoComplete="tel"
-                placeholder="10-digit mobile number"
+                placeholder="10-digit mobile (e.g. 9876543210)"
+                inputMode="numeric"
+                maxLength={10}
                 value={formData.phone}
                 onChange={handleInputChange}
                 aria-invalid={!!errors.phone}
@@ -791,6 +793,7 @@ export default function AppointmentForm() {
                 min="1"
                 max="120"
                 inputMode="numeric"
+                placeholder="e.g. 30"
                 value={formData.age}
                 onChange={handleInputChange}
                 aria-invalid={!!errors.age}

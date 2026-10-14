@@ -27,6 +27,19 @@ const MONTH_NAMES = [
   'December',
 ];
 
+const ALL_CLINIC_SLOTS = [
+  '09:00',
+  '09:45',
+  '10:30',
+  '11:15',
+  '12:00',
+  '12:45',
+  '15:00',
+  '15:45',
+  '16:30',
+  '17:15',
+];
+
 export default function AdminAppointmentCalendar({
   appointments,
   overrides = [],
@@ -213,30 +226,60 @@ export default function AdminAppointmentCalendar({
           const dayAppts = appointmentsByDate.get(day.dateIso) || [];
           const override = overridesByDate.get(day.dateIso);
           const isFullDayLeave = override?.type === 'full_day';
+          const dayDate = new Date(`${day.dateIso}T00:00:00`);
+          const isSunday = dayDate.getDay() === 0;
+
+          // Occupied slots calculation
+          const activeAppts = dayAppts.filter((a) => a.status !== 'cancelled');
+          const blockedSlots = override?.type === 'specific_slots' ? (override.blockedSlots || []) : [];
+          const occupiedSlots = new Set([...activeAppts.map((a) => a.time), ...blockedSlots]);
+          const isFullyBooked = ALL_CLINIC_SLOTS.every((slot) => occupiedSlots.has(slot));
+
+          const isPastOrToday = day.dateIso <= todayIso;
+          const isBookingDisabled =
+            !day.isCurrentMonth || isPastOrToday || isSunday || isFullDayLeave || isFullyBooked;
+          const isBookable = !isBookingDisabled;
+          const hasAppointments = dayAppts.length > 0;
 
           return (
             <div
               key={day.dateIso}
               className={`cal-day-cell ${!day.isCurrentMonth ? 'other-month' : ''} ${
                 day.isToday ? 'cell-today' : ''
-              } ${isFullDayLeave ? 'cell-doctor-leave' : ''}`}
+              } ${day.isPast ? 'cell-past' : ''} ${isSunday ? 'cell-sunday' : ''} ${
+                isFullDayLeave ? 'cell-doctor-leave' : ''
+              } ${isFullyBooked ? 'cell-fully-booked' : ''} ${
+                isBookingDisabled ? 'cell-not-bookable' : 'cell-bookable'
+              }`}
             >
               <div className="cal-cell-top">
                 <span className={`cal-day-num ${day.isToday ? 'today-num-badge' : ''}`}>
                   {day.dayNum}
                 </span>
 
-                {day.isCurrentMonth && (
+                {/* When there are appointments on this bookable date: show add icon in TOP RIGHT CORNER */}
+                {isBookable && hasAppointments && (
                   <button
                     type="button"
-                    className="btn-quick-add-slot"
-                    onClick={() => onBookDate(day.dateIso)}
+                    className="btn-quick-add-slot btn-add-top-right"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onBookDate(day.dateIso);
+                    }}
                     title={`Book appointment on ${day.dateIso}`}
+                    aria-label={`Book appointment on ${day.dateIso}`}
                   >
                     +
                   </button>
                 )}
               </div>
+
+              {/* Sunday Clinic Weekly Off Marker */}
+              {isSunday && day.isCurrentMonth && (
+                <div className="cal-sunday-pill" title="Clinic closed on Sundays (Weekly Off)">
+                  <span>Weekly Off</span>
+                </div>
+              )}
 
               {/* Doctor Leave Marker */}
               {isFullDayLeave && (
@@ -245,43 +288,86 @@ export default function AdminAppointmentCalendar({
                 </div>
               )}
 
-              {/* Day's Appointments List */}
-              <div className="cal-cell-appts-list">
-                {dayAppts.map((appt) => {
-                  const isOffline = appt.consultationType === 'offline';
-                  const isCancelled = appt.status === 'cancelled';
-                  const isCash = appt.paymentMethod === 'Cash';
+              {/* Fully Booked Marker */}
+              {isFullyBooked && !isPastOrToday && !isSunday && !isFullDayLeave && (
+                <div
+                  className="cal-fullybooked-pill"
+                  title="All 10 appointment slots are booked for this date"
+                >
+                  <span>🔴 Fully Booked (10/10)</span>
+                </div>
+              )}
 
-                  return (
-                    <button
-                      key={appt.id}
-                      type="button"
-                      onClick={() => onSelectPatient(appt)}
-                      className={`cal-appt-chip ${
-                        isCancelled
-                          ? 'chip-cancelled'
-                          : isOffline
-                          ? 'chip-offline'
-                          : 'chip-online'
-                      }`}
-                      title={`${appt.fullName} • ${appt.time} • ${
-                        isOffline ? 'In-Clinic (Offline)' : 'Online (Google Meet)'
-                      } • Payment: ${appt.paymentMethod} (₹${appt.amount || 800})`}
+              {/* When NO appointments on this bookable date: place add icon in CENTER */}
+              {isBookable && !hasAppointments && !isFullDayLeave && (
+                <div
+                  className="cal-cell-center-add"
+                  onClick={() => onBookDate(day.dateIso)}
+                  title={`Click to book appointment on ${day.dateIso}`}
+                >
+                  <button
+                    type="button"
+                    className="btn-center-add-slot"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onBookDate(day.dateIso);
+                    }}
+                    title={`Book appointment on ${day.dateIso}`}
+                    aria-label={`Book appointment on ${day.dateIso}`}
+                  >
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     >
-                      <span className="chip-time">{appt.time}</span>
-                      <span className="chip-icon">
-                        {isOffline ? '🏥' : '📹'}
-                      </span>
-                      <strong className="chip-name">{appt.fullName}</strong>
-                      {isOffline && (
-                        <span className="chip-offline-tag">
-                          {isCash ? 'Offline • Cash' : 'Offline'}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {/* Day's Appointments List */}
+              {hasAppointments && (
+                <div className="cal-cell-appts-list">
+                  {dayAppts.map((appt) => {
+                    const isOffline = appt.consultationType === 'offline';
+                    const isCancelled = appt.status === 'cancelled';
+                    const isCash = appt.paymentMethod === 'Cash';
+
+                    return (
+                      <button
+                        key={appt.id}
+                        type="button"
+                        onClick={() => onSelectPatient(appt)}
+                        className={`cal-appt-chip ${
+                          isCancelled
+                            ? 'chip-cancelled'
+                            : isOffline
+                            ? 'chip-offline'
+                            : 'chip-online'
+                        }`}
+                        title={`${appt.fullName} • ${appt.time} • ${
+                          isOffline ? 'In-Clinic (Offline)' : 'Online (Google Meet)'
+                        } • Payment: ${appt.paymentMethod} (₹${appt.amount || 800})`}
+                      >
+                        <span className="chip-time">{appt.time}</span>
+                        <strong className="chip-name">{appt.fullName}</strong>
+                        {isOffline && (
+                          <span className="chip-offline-tag">
+                            {isCash ? 'Offline • Cash' : 'Offline'}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
@@ -302,9 +388,15 @@ export default function AdminAppointmentCalendar({
           <span className="legend-chip-sample cell-doctor-leave">
             Doctor Leave / Blackout
           </span>
+          <span className="legend-chip-sample legend-sunday">
+            Weekly Off (Closed)
+          </span>
+          <span className="legend-chip-sample legend-fullybooked">
+            Fully Booked
+          </span>
         </div>
         <p className="legend-tip">
-          Click any appointment badge to view full clinical notes, or click <strong>+</strong> on any date to schedule an in-clinic/online visit.
+          Click any appointment badge to view full clinical notes, or click <strong>+</strong> on any available upcoming date to schedule a visit.
         </p>
       </div>
     </div>

@@ -208,7 +208,7 @@ export default function AdminAppointmentsTab({
           title="Book appointment and collect cash"
         >
           <IconPlus />
-          <span>+ Book (Cash)</span>
+          <span>Book Appointment</span>
         </button>
 
         <button type="button" onClick={onRefresh} className="btn-reload" title="Refresh records">

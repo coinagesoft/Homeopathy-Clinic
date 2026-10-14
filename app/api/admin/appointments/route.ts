@@ -310,11 +310,46 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!fullName || typeof fullName !== 'string' || fullName.trim().length < 2) {
-      return NextResponse.json({ error: 'Patient full name is required.' }, { status: 400 });
+      return NextResponse.json({ error: 'Patient full name is required (minimum 2 characters).' }, { status: 400 });
     }
-    if (!phone || typeof phone !== 'string' || phone.trim().length < 10) {
-      return NextResponse.json({ error: 'Valid 10-digit phone number is required.' }, { status: 400 });
+
+    const rawPhone = typeof phone === 'string' ? phone.trim().replace(/[\s-]/g, '') : '';
+    if (!/^(\+91|91|0)?[6-9]\d{9}$/.test(rawPhone)) {
+      return NextResponse.json(
+        { error: 'A valid 10-digit mobile number starting with 6, 7, 8, or 9 is required.' },
+        { status: 400 }
+      );
     }
+    const cleanPhone = rawPhone.replace(/^(\+91|91|0)/, '');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    const trimmedEmail = typeof email === 'string' ? email.trim() : '';
+    if (consultationType === 'online' && (!trimmedEmail || !emailRegex.test(trimmedEmail))) {
+      return NextResponse.json(
+        { error: 'A valid email address is required for online video (Google Meet) consultations.' },
+        { status: 400 }
+      );
+    }
+    if (trimmedEmail && !emailRegex.test(trimmedEmail)) {
+      return NextResponse.json(
+        { error: 'Please enter a valid email address (e.g. name@example.com).' },
+        { status: 400 }
+      );
+    }
+    const finalEmail = trimmedEmail || 'patient@walkin.clinic';
+
+    let validatedAge = 0;
+    if (age !== undefined && age !== null && age !== '') {
+      const ageNum = Number(age);
+      if (!Number.isInteger(ageNum) || ageNum < 1 || ageNum > 120) {
+        return NextResponse.json(
+          { error: 'Age must be an integer between 1 and 120.' },
+          { status: 400 }
+        );
+      }
+      validatedAge = ageNum;
+    }
+
     if (!date || !time) {
       return NextResponse.json({ error: 'Appointment date and time slot are required.' }, { status: 400 });
     }
@@ -329,15 +364,14 @@ export async function POST(request: NextRequest) {
     }
 
     const appointmentId = crypto.randomUUID();
-    const finalEmail = (email && typeof email === 'string' && email.trim()) ? email.trim() : 'patient@walkin.clinic';
     const finalAmount = typeof amount === 'number' && !isNaN(amount) ? amount : 800;
 
     const newAppointment: Appointment = {
       id: appointmentId,
       fullName: fullName.trim(),
-      phone: phone.trim(),
+      phone: cleanPhone,
       email: finalEmail,
-      age: Number(age) || 30,
+      age: validatedAge,
       reason: reason?.trim() || 'General Consultation',
       date,
       time,

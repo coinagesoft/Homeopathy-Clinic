@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Appointment } from '@/lib/storage';
+import { DoctorOverride } from '@/lib/availability';
 import ThemedDatePicker from './ThemedDatePicker';
 
 const ALL_CLINIC_SLOTS = [
@@ -30,12 +31,16 @@ interface AdminRescheduleModalProps {
   appointment: Appointment | null;
   onClose: () => void;
   onSuccess: () => void;
+  appointments?: Appointment[];
+  overrides?: DoctorOverride[];
 }
 
 export default function AdminRescheduleModal({
   appointment,
   onClose,
   onSuccess,
+  appointments = [],
+  overrides = [],
 }: AdminRescheduleModalProps) {
   // Today in Asia/Kolkata
   const todayIso = useMemo(() => {
@@ -387,6 +392,11 @@ export default function AdminRescheduleModal({
                   value={newDate}
                   onChange={(d) => setNewDate(d)}
                   minDate={todayIso}
+                  appointments={appointments}
+                  existingOverrides={overrides}
+                  disableWeeklyOff={true}
+                  disableDoctorLeaves={true}
+                  disableFullyBooked={true}
                   className="modal-date-picker"
                 />
               </div>

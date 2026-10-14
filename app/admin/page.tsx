@@ -560,6 +560,8 @@ export default function AdminPage() {
       <AdminBookAppointmentModal
         isOpen={showBookModal}
         initialDate={bookingDate}
+        appointments={appointments}
+        overrides={overrides}
         onClose={() => setShowBookModal(false)}
         onSuccess={() => {
           loadAppointments();
@@ -570,6 +572,8 @@ export default function AdminPage() {
       {/* Admin Reschedule Appointment Slide-Over Drawer */}
       <AdminRescheduleModal
         appointment={rescheduleAppointment}
+        appointments={appointments}
+        overrides={overrides}
         onClose={() => setRescheduleAppointment(null)}
         onSuccess={() => {
           loadAppointments();

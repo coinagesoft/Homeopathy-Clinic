@@ -244,6 +244,9 @@ export default function DoctorAvailabilityManager({
                 label="Target Date"
                 existingOverrides={overrides}
                 disabled={isSubmitting}
+                disableWeeklyOff={false}
+                disableDoctorLeaves={false}
+                disableFullyBooked={false}
               />
               <span className="field-hint">Select tomorrow or any upcoming date to block</span>
             </div>

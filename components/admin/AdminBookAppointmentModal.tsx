@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import ThemedDatePicker from './ThemedDatePicker';
+import { Appointment } from '@/lib/storage';
+import { DoctorOverride } from '@/lib/availability';
 
 const ALL_CLINIC_SLOTS = [
   { value: '09:00', label: '9:00 AM' },
@@ -27,11 +29,67 @@ const HEALTH_REASONS = [
   'Follow-up Consultation',
 ];
 
+export function isClinicDateUnavailable(
+  dateIso: string,
+  overrides: DoctorOverride[] = [],
+  appointments: Appointment[] = []
+): { unavailable: boolean; reason?: string } {
+  if (!dateIso) return { unavailable: true, reason: 'Please select an appointment date.' };
+  const d = new Date(`${dateIso}T00:00:00`);
+  if (isNaN(d.getTime())) return { unavailable: true, reason: 'Invalid date format.' };
+
+  // 1. Weekly off (Sunday)
+  if (d.getDay() === 0) {
+    return { unavailable: true, reason: 'The clinic is closed on Sundays (Weekly Off).' };
+  }
+
+  // 2. Doctor on leave
+  const override = overrides.find((o) => o.date === dateIso);
+  if (override?.type === 'full_day') {
+    return { unavailable: true, reason: `Doctor is on leave: ${override.reason || 'Unavailable'}.` };
+  }
+
+  // 3. Fully booked
+  const activeAppts = appointments.filter((a) => a.date === dateIso && a.status !== 'cancelled');
+  const blockedSlots = override?.type === 'specific_slots' ? (override.blockedSlots || []) : [];
+  const occupiedSlots = new Set([...activeAppts.map((a) => a.time), ...blockedSlots]);
+  if (ALL_CLINIC_SLOTS.every((s) => occupiedSlots.has(s.value))) {
+    return { unavailable: true, reason: 'All appointment slots are fully booked for this date.' };
+  }
+
+  return { unavailable: false };
+}
+
+export function findNextAvailableClinicDate(
+  startDateIso: string,
+  overrides: DoctorOverride[] = [],
+  appointments: Appointment[] = []
+): string {
+  let curr = new Date(`${startDateIso}T00:00:00`);
+  if (isNaN(curr.getTime())) {
+    curr = new Date();
+    curr.setDate(curr.getDate() + 1);
+  }
+
+  for (let i = 0; i < 60; i++) {
+    const iso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(curr);
+    const check = isClinicDateUnavailable(iso, overrides, appointments);
+    if (!check.unavailable) {
+      return iso;
+    }
+    curr.setDate(curr.getDate() + 1);
+  }
+
+  return startDateIso;
+}
+
 interface AdminBookAppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   initialDate?: string;
+  appointments?: Appointment[];
+  overrides?: DoctorOverride[];
 }
 
 export default function AdminBookAppointmentModal({
@@ -39,19 +97,36 @@ export default function AdminBookAppointmentModal({
   onClose,
   onSuccess,
   initialDate,
+  appointments = [],
+  overrides = [],
 }: AdminBookAppointmentModalProps) {
   // Format today's date in YYYY-MM-DD
   const todayIso = useMemo(() => {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
   }, []);
 
+  const tomorrowIso = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
+  }, []);
+
   const [consultationType, setConsultationType] = useState<'offline' | 'online'>('offline');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [age, setAge] = useState('30');
+  const [age, setAge] = useState('');
   const [reason, setReason] = useState(HEALTH_REASONS[0]);
-  const [date, setDate] = useState(initialDate || todayIso);
+  const [date, setDate] = useState(() => {
+    if (
+      initialDate &&
+      initialDate > todayIso &&
+      !isClinicDateUnavailable(initialDate, overrides, appointments).unavailable
+    ) {
+      return initialDate;
+    }
+    return findNextAvailableClinicDate(tomorrowIso, overrides, appointments);
+  });
   const [time, setTime] = useState('10:30');
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'UPI' | 'Card' | 'Pending'>('Cash');
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'pending'>('paid');
@@ -70,12 +145,27 @@ export default function AdminBookAppointmentModal({
     meetLink?: string;
   } | null>(null);
 
-  // Sync initial date
+  // Sync initial date or fallback to first valid date
   useEffect(() => {
-    if (initialDate) {
+    if (
+      initialDate &&
+      initialDate > todayIso &&
+      !isClinicDateUnavailable(initialDate, overrides, appointments).unavailable
+    ) {
       setDate(initialDate);
+    } else if (isOpen) {
+      setDate((curr) => {
+        if (
+          curr &&
+          curr > todayIso &&
+          !isClinicDateUnavailable(curr, overrides, appointments).unavailable
+        ) {
+          return curr;
+        }
+        return findNextAvailableClinicDate(tomorrowIso, overrides, appointments);
+      });
     }
-  }, [initialDate]);
+  }, [initialDate, todayIso, tomorrowIso, overrides, appointments, isOpen]);
 
   // ESC key listener & body scroll lock
   useEffect(() => {
@@ -143,17 +233,55 @@ export default function AdminBookAppointmentModal({
     e.preventDefault();
     setErrorMsg('');
 
+    // 1. Patient Name Validation
     if (!fullName.trim() || fullName.trim().length < 2) {
-      setErrorMsg('Please enter a valid patient full name.');
+      setErrorMsg('Please enter a valid patient full name (minimum 2 characters).');
       return;
     }
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    if (cleanPhone.length < 10) {
-      setErrorMsg('Please provide a valid 10-digit mobile number.');
+
+    // 2. Mobile Number Validation (Indian / 10-digit mobile)
+    const rawPhone = phone.trim();
+    if (!/^[6-9]\d{9}$/.test(rawPhone)) {
+      setErrorMsg('Please provide a valid 10-digit mobile number starting with 6, 7, 8, or 9.');
       return;
     }
+    const cleanPhone = rawPhone;
+
+    // 3. Email Validation
+    const trimmedEmail = email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (consultationType === 'online' && !trimmedEmail) {
+      setErrorMsg('Patient email address is required for Online Video (Google Meet) consultations.');
+      return;
+    }
+    if (trimmedEmail && !emailRegex.test(trimmedEmail)) {
+      setErrorMsg('Please enter a valid email address (e.g. name@example.com).');
+      return;
+    }
+
+    // 4. Age Validation (Optional, but if entered must be between 1 and 120)
+    let validatedAge = 0;
+    if (age.trim()) {
+      const parsedAge = Number(age.trim());
+      if (!Number.isInteger(parsedAge) || parsedAge < 1 || parsedAge > 120) {
+        setErrorMsg('Please enter a valid age between 1 and 120 years.');
+        return;
+      }
+      validatedAge = parsedAge;
+    }
+
+    // 5. Date & Time Validation
     if (!date || !time) {
       setErrorMsg('Please select both an appointment date and time slot.');
+      return;
+    }
+    if (date <= todayIso) {
+      setErrorMsg('Appointments can only be scheduled for future dates (from tomorrow onwards).');
+      return;
+    }
+    const unavailableCheck = isClinicDateUnavailable(date, overrides, appointments);
+    if (unavailableCheck.unavailable) {
+      setErrorMsg(unavailableCheck.reason || 'The selected date is unavailable for booking.');
       return;
     }
 
@@ -165,8 +293,8 @@ export default function AdminBookAppointmentModal({
         body: JSON.stringify({
           fullName: fullName.trim(),
           phone: cleanPhone,
-          email: email.trim(),
-          age: Number(age) || 30,
+          email: trimmedEmail,
+          age: validatedAge,
           reason,
           date,
           time,
@@ -204,6 +332,7 @@ export default function AdminBookAppointmentModal({
     setFullName('');
     setPhone('');
     setEmail('');
+    setAge('');
     setNotes('');
     onClose();
   };
@@ -214,6 +343,7 @@ export default function AdminBookAppointmentModal({
     setFullName('');
     setPhone('');
     setEmail('');
+    setAge('');
     setNotes('');
   };
 
@@ -421,9 +551,14 @@ export default function AdminBookAppointmentModal({
                   </label>
                   <input
                     type="tel"
-                    placeholder="10-digit mobile number"
+                    placeholder="10-digit mobile (e.g. 9876543210)"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    inputMode="numeric"
+                    maxLength={10}
+                    onChange={(e) => {
+                      setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
+                      if (errorMsg) setErrorMsg('');
+                    }}
                     className="modal-input"
                     required
                   />
@@ -434,25 +569,42 @@ export default function AdminBookAppointmentModal({
                 <div className="form-field">
                   <label>
                     Patient Email Address
+                    {consultationType === 'online' ? (
+                      <span className="req">*</span>
+                    ) : (
+                      <small className="label-tip"> (Optional)</small>
+                    )}
                     <small className="label-tip"> (for Google Calendar &amp; Meet Invite)</small>
                   </label>
                   <input
                     type="email"
+                    autoComplete="email"
+                    maxLength={254}
                     placeholder="patient@example.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (errorMsg) setErrorMsg('');
+                    }}
                     className="modal-input"
+                    required={consultationType === 'online'}
                   />
                 </div>
 
                 <div className="form-field">
-                  <label>Age</label>
+                  <label>
+                    Age <small className="label-tip"> (Optional)</small>
+                  </label>
                   <input
                     type="number"
                     min="1"
                     max="120"
+                    placeholder="e.g. 30"
                     value={age}
-                    onChange={(e) => setAge(e.target.value)}
+                    onChange={(e) => {
+                      setAge(e.target.value);
+                      if (errorMsg) setErrorMsg('');
+                    }}
                     className="modal-input"
                   />
                 </div>
@@ -482,7 +634,12 @@ export default function AdminBookAppointmentModal({
                 <ThemedDatePicker
                   value={date}
                   onChange={(newDate) => setDate(newDate)}
-                  minDate={todayIso}
+                  minDate={tomorrowIso}
+                  appointments={appointments}
+                  existingOverrides={overrides}
+                  disableWeeklyOff={true}
+                  disableDoctorLeaves={true}
+                  disableFullyBooked={true}
                   className="modal-date-picker"
                 />
               </div>
@@ -547,7 +704,6 @@ export default function AdminBookAppointmentModal({
                       <option value="Cash">Cash (Desk Collection)</option>
                       <option value="UPI">UPI (QR / PhonePe / GPay)</option>
                       <option value="Card">Card / Swipe POS</option>
-                      <option value="Pending">Pending Settlement</option>
                     </select>
                   </div>
 
