@@ -116,22 +116,68 @@ export async function createCalendarMeeting(
   const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
   const { startIso, endIso } = getStartAndEndTime(appointment.date, appointment.time);
 
-  const eventPayload = {
-    summary: `Homeopathy Consultation: ${appointment.fullName} & Dr. Aarav Mehta`,
-    description: `Homeopathy Consultation
+  const isOffline = appointment.consultationType === 'offline';
+
+  const summary = isOffline
+    ? `[In-Clinic / Offline] Consultation: ${appointment.fullName} - Dr. Aarav Mehta Clinic`
+    : `[Online Video] Homeopathy Consultation: ${appointment.fullName} & Dr. Aarav Mehta`;
+
+  const location = isOffline
+    ? 'Dr. Aarav Homeopathy Clinic, 123 Green Park Road, Near Deccan Gymkhana, Pune, Maharashtra 411001'
+    : 'Google Meet Video Call';
+
+  const description = isOffline
+    ? `IN-CLINIC / OFFLINE CONSULTATION (In-Person Clinic Visit)
 --------------------------------------------------
 Patient Name: ${appointment.fullName}
 Phone: ${appointment.phone}
 Email: ${appointment.email}
 Age: ${appointment.age}
-Reason: ${appointment.reason}
-Notes: ${appointment.message || 'No additional notes'}
+Reason for Visit: ${appointment.reason}
+Consultation Mode: In-Person (Offline Clinic Visit)
+Payment: ${appointment.paymentMethod || 'Cash'} (₹${appointment.amount || 800}) - ${appointment.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+Notes: ${appointment.notes || appointment.message || 'Please arrive at the clinic 10 minutes prior to your slot.'}
 
-Clinic Details:
+Clinic Address:
 Dr. Aarav Homeopathy Clinic
-123 Green Park Road, Pune, Maharashtra
+123 Green Park Road, Near Deccan Gymkhana, Pune, Maharashtra 411001
 Doctor Contact: +91 98765 43210
-Doctor Email: ${DOCTOR_EMAIL}`,
+Doctor Email: ${DOCTOR_EMAIL}`
+    : `ONLINE HOMEOPATHY CONSULTATION (Google Meet)
+--------------------------------------------------
+Patient Name: ${appointment.fullName}
+Phone: ${appointment.phone}
+Email: ${appointment.email}
+Age: ${appointment.age}
+Reason for Visit: ${appointment.reason}
+Consultation Mode: Online Video (Google Meet)
+Payment: ${appointment.paymentMethod || 'Online'} (₹${appointment.amount || 800})
+Notes: ${appointment.notes || appointment.message || 'Please join the Google Meet link 5 minutes before scheduled slot.'}
+
+Doctor Contact: +91 98765 43210
+Doctor Email: ${DOCTOR_EMAIL}`;
+
+  // Attendees list: sends calendar invite to patient's email and doctor's calendar
+  const attendees: { email: string; displayName: string; responseStatus?: string }[] = [
+    {
+      email: DOCTOR_EMAIL,
+      displayName: 'Dr. Aarav Mehta (Doctor)',
+      responseStatus: 'accepted',
+    },
+  ];
+
+  if (appointment.email && appointment.email.includes('@') && !appointment.email.endsWith('@walkin.clinic')) {
+    attendees.push({
+      email: appointment.email.trim(),
+      displayName: appointment.fullName,
+    });
+  }
+
+  // Event payload
+  const eventPayload: any = {
+    summary,
+    description,
+    location,
     start: {
       dateTime: startIso,
       timeZone: 'Asia/Kolkata',
@@ -140,25 +186,7 @@ Doctor Email: ${DOCTOR_EMAIL}`,
       dateTime: endIso,
       timeZone: 'Asia/Kolkata',
     },
-    attendees: [
-      {
-        email: DOCTOR_EMAIL,
-        displayName: 'Dr. Aarav Mehta (Admin/Doctor)',
-        responseStatus: 'accepted',
-      },
-      {
-        email: appointment.email,
-        displayName: appointment.fullName,
-      },
-    ],
-    conferenceData: {
-      createRequest: {
-        requestId: `appt-${appointment.id}-${Date.now()}`,
-        conferenceSolutionKey: {
-          type: 'hangoutsMeet',
-        },
-      },
-    },
+    attendees,
     reminders: {
       useDefault: false,
       overrides: [
@@ -168,17 +196,29 @@ Doctor Email: ${DOCTOR_EMAIL}`,
     },
   };
 
+  // Add Google Meet conference link for online consultations
+  if (!isOffline) {
+    eventPayload.conferenceData = {
+      createRequest: {
+        requestId: `appt-${appointment.id}-${Date.now()}`,
+        conferenceSolutionKey: {
+          type: 'hangoutsMeet',
+        },
+      },
+    };
+  }
+
   const response = await calendar.events.insert({
     calendarId: 'primary',
-    conferenceDataVersion: 1,
-    sendUpdates: 'all', // Send calendar invitation email to both doctor and patient
+    conferenceDataVersion: isOffline ? 0 : 1,
+    sendUpdates: 'all', // Dispatches calendar invite on email to attendees
     requestBody: eventPayload,
   });
 
   const eventData = response.data;
   let meetLink = eventData.hangoutLink || '';
 
-  if (!meetLink && eventData.conferenceData?.entryPoints) {
+  if (!meetLink && !isOffline && eventData.conferenceData?.entryPoints) {
     const videoPoint = eventData.conferenceData.entryPoints.find(
       (ep) => ep.entryPointType === 'video'
     );
@@ -258,15 +298,36 @@ export function generateGoogleCalendarUrl(
     d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const dates = `${formatUtc(start)}/${formatUtc(end)}`;
 
-  const title = `Homeopathy Consultation: ${appointment.fullName} & Dr. Aarav Mehta`;
-  const details = `Homeopathy Clinic Consultation
+  const isOffline = appointment.consultationType === 'offline';
+
+  const title = isOffline
+    ? `[In-Clinic / Offline] Consultation: ${appointment.fullName} - Dr. Aarav Mehta`
+    : `[Online Video] Homeopathy Consultation: ${appointment.fullName} & Dr. Aarav Mehta`;
+
+  const details = isOffline
+    ? `IN-CLINIC / OFFLINE CONSULTATION (In-Person Clinic Visit)
 --------------------------------------------------
 Patient Name: ${appointment.fullName}
 Phone: ${appointment.phone}
 Email: ${appointment.email}
 Age: ${appointment.age}
 Reason: ${appointment.reason}
-Notes: ${appointment.message || 'No additional notes'}
+Payment: ${appointment.paymentMethod || 'Cash'} (₹${appointment.amount || 800})
+Notes: ${appointment.notes || appointment.message || 'Please arrive 10 mins early.'}
+
+Clinic Address:
+Dr. Aarav Homeopathy Clinic
+123 Green Park Road, Near Deccan Gymkhana, Pune, Maharashtra 411001
+Doctor Contact: +91 98765 43210
+Doctor Email: ${DOCTOR_EMAIL}`
+    : `ONLINE HOMEOPATHY CONSULTATION (Google Meet)
+--------------------------------------------------
+Patient Name: ${appointment.fullName}
+Phone: ${appointment.phone}
+Email: ${appointment.email}
+Age: ${appointment.age}
+Reason: ${appointment.reason}
+Notes: ${appointment.notes || appointment.message || 'No additional notes'}
 
 Google Meet: ${appointment.meetLink || 'Will be shared'}
 
@@ -276,7 +337,10 @@ Dr. Aarav Homeopathy Clinic
 Doctor Contact: +91 98765 43210
 Doctor Email: ${DOCTOR_EMAIL}`;
 
-  const location = appointment.meetLink || 'Dr. Aarav Homeopathy Clinic, Pune';
+  const location = isOffline
+    ? 'Dr. Aarav Homeopathy Clinic, 123 Green Park Road, Near Deccan Gymkhana, Pune, Maharashtra 411001'
+    : appointment.meetLink || 'Google Meet Video Call';
+
   const addGuests = `${DOCTOR_EMAIL},${appointment.email}`;
 
   const params = new URLSearchParams({
@@ -303,6 +367,19 @@ export function generateIcsContent(
   const formatUtc = (d: Date) =>
     d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 
+  const isOffline = appointment.consultationType === 'offline';
+  const summary = isOffline
+    ? `[In-Clinic / Offline] Consultation: ${appointment.fullName} - Dr. Aarav Mehta Clinic`
+    : `Online Video Consultation: ${appointment.fullName} & Dr. Aarav Mehta`;
+
+  const location = isOffline
+    ? 'Dr. Aarav Homeopathy Clinic, 123 Green Park Road, Near Deccan Gymkhana, Pune, Maharashtra 411001'
+    : appointment.meetLink || 'Google Meet Video Call';
+
+  const description = isOffline
+    ? `In-Clinic (Offline) Homeopathy Consultation\\nPatient: ${appointment.fullName}\\nPhone: ${appointment.phone}\\nMode: Offline Visit\\nPayment: ${appointment.paymentMethod || 'Cash'} (₹${appointment.amount || 800})\\nAddress: 123 Green Park Road, Pune`
+    : `Online Homeopathy Consultation\\nPatient: ${appointment.fullName}\\nPhone: ${appointment.phone}\\nReason: ${appointment.reason}\\nGoogle Meet: ${appointment.meetLink || ''}`;
+
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -314,9 +391,9 @@ export function generateIcsContent(
     `DTSTAMP:${formatUtc(new Date())}`,
     `DTSTART:${formatUtc(start)}`,
     `DTEND:${formatUtc(end)}`,
-    `SUMMARY:Homeopathy Consultation: ${appointment.fullName} & Dr. Aarav Mehta`,
-    `DESCRIPTION:Patient: ${appointment.fullName}\\nPhone: ${appointment.phone}\\nReason: ${appointment.reason}\\nGoogle Meet: ${appointment.meetLink || ''}`,
-    `LOCATION:${appointment.meetLink || 'Dr. Aarav Homeopathy Clinic, Pune'}`,
+    `SUMMARY:${summary}`,
+    `DESCRIPTION:${description}`,
+    `LOCATION:${location}`,
     `ORGANIZER;CN=Dr. Aarav Mehta:mailto:${DOCTOR_EMAIL}`,
     `ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=Dr. Aarav Mehta:mailto:${DOCTOR_EMAIL}`,
     `ATTENDEE;ROLE=REQ-PARTICIPANT;CN=${appointment.fullName}:mailto:${appointment.email}`,

@@ -23,6 +23,7 @@ export interface Appointment {
   paymentId?: string;
   paidAt?: string;
   notes?: string;
+  consultationType?: 'online' | 'offline';
 }
 
 interface AppointmentRow extends RowDataPacket {
@@ -44,12 +45,18 @@ interface AppointmentRow extends RowDataPacket {
   payment_id: string | null;
   paid_at: string | null;
   notes: string | null;
+  consultation_type?: 'online' | 'offline' | null;
   created_at: string;
 }
 
 let inMemoryTokens: Credentials | null = null;
 
 function mapRowToAppointment(row: AppointmentRow): Appointment {
+  const isOffline =
+    row.consultation_type === 'offline' ||
+    (row.notes && row.notes.toLowerCase().includes('offline')) ||
+    (!row.meet_link && row.payment_method === 'Cash');
+
   return {
     id: row.id,
     fullName: row.full_name,
@@ -70,6 +77,7 @@ function mapRowToAppointment(row: AppointmentRow): Appointment {
     paymentId: row.payment_id || `PAY-${row.id.slice(0, 8).toUpperCase()}`,
     paidAt: row.paid_at || row.created_at,
     notes: row.notes || '',
+    consultationType: isOffline ? 'offline' : 'online',
   };
 }
 
@@ -180,13 +188,14 @@ export async function saveAppointment(appointment: Appointment): Promise<Appoint
   const paymentId = appointment.paymentId || `PAY-${appointment.id.slice(0, 8).toUpperCase()}`;
   const paidAt = appointment.paidAt || appointment.createdAt;
   const notes = appointment.notes || '';
+  const consultationType = appointment.consultationType || 'online';
 
   await pool.execute(
     `INSERT INTO appointments (
       id, full_name, phone, email, age, reason,
       appointment_date, appointment_time, message, meet_link, google_event_id,
-      status, payment_status, amount, payment_method, payment_id, paid_at, notes, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      status, payment_status, amount, payment_method, payment_id, paid_at, notes, consultation_type, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
       full_name = VALUES(full_name),
       phone = VALUES(phone),
@@ -204,7 +213,8 @@ export async function saveAppointment(appointment: Appointment): Promise<Appoint
       payment_method = VALUES(payment_method),
       payment_id = VALUES(payment_id),
       paid_at = VALUES(paid_at),
-      notes = VALUES(notes)`,
+      notes = VALUES(notes),
+      consultation_type = VALUES(consultation_type)`,
     [
       appointment.id,
       appointment.fullName,
@@ -224,6 +234,7 @@ export async function saveAppointment(appointment: Appointment): Promise<Appoint
       paymentId,
       paidAt,
       notes,
+      consultationType,
       appointment.createdAt,
     ]
   );
@@ -237,6 +248,7 @@ export async function saveAppointment(appointment: Appointment): Promise<Appoint
     paymentId,
     paidAt,
     notes,
+    consultationType,
   };
 
   await syncPatientAndPaymentTables(saved);

@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import {
   getAllAppointments,
   updateAppointment,
   deleteAppointment,
+  saveAppointment,
+  isSlotBooked,
   Appointment,
 } from '@/lib/storage';
 import { verifyAdminRequest } from '@/lib/adminAuth';
+import {
+  isGoogleConnected,
+  createCalendarMeeting,
+  DOCTOR_EMAIL,
+} from '@/lib/google';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +31,7 @@ export async function GET(request: NextRequest) {
     const query = searchParams.get('q')?.toLowerCase() || '';
     const statusFilter = searchParams.get('status') || 'all';
     const timeFilter = searchParams.get('time') || 'all';
+    const modeFilter = searchParams.get('mode') || 'all';
 
     let appointments = await getAllAppointments();
 
@@ -81,6 +90,12 @@ export async function GET(request: NextRequest) {
       appointments = appointments.filter((a) => a.date >= nowIso && a.status !== 'cancelled');
     } else if (timeFilter === 'past') {
       appointments = appointments.filter((a) => a.date < nowIso);
+    }
+
+    if (modeFilter === 'offline') {
+      appointments = appointments.filter((a) => a.consultationType === 'offline');
+    } else if (modeFilter === 'online') {
+      appointments = appointments.filter((a) => a.consultationType !== 'offline');
     }
 
     return NextResponse.json({
@@ -187,6 +202,123 @@ export async function DELETE(request: NextRequest) {
     console.error('Error deleting appointment:', err);
     return NextResponse.json(
       { error: 'Failed to delete appointment.' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const auth = verifyAdminRequest(request);
+  if (!auth.authenticated) {
+    return NextResponse.json(
+      { error: auth.error || 'Unauthorized access.' },
+      { status: 401 }
+    );
+  }
+
+  try {
+    const body = await request.json();
+    const {
+      fullName,
+      phone,
+      email,
+      age,
+      reason,
+      date,
+      time,
+      consultationType = 'offline', // 'offline' or 'online'
+      paymentMethod = 'Cash',      // 'Cash', 'UPI', 'Card', 'Pending'
+      paymentStatus = 'paid',      // 'paid' or 'pending'
+      amount = 800,
+      notes = '',
+      message = '',
+    } = body;
+
+    if (!fullName || typeof fullName !== 'string' || fullName.trim().length < 2) {
+      return NextResponse.json({ error: 'Patient full name is required.' }, { status: 400 });
+    }
+    if (!phone || typeof phone !== 'string' || phone.trim().length < 10) {
+      return NextResponse.json({ error: 'Valid 10-digit phone number is required.' }, { status: 400 });
+    }
+    if (!date || !time) {
+      return NextResponse.json({ error: 'Appointment date and time slot are required.' }, { status: 400 });
+    }
+
+    // Check if slot is already booked in MySQL DB
+    const dbBooked = await isSlotBooked(date, time);
+    if (dbBooked) {
+      return NextResponse.json(
+        { error: `The time slot ${time} on ${date} is already booked. Please choose a different slot.` },
+        { status: 409 }
+      );
+    }
+
+    const appointmentId = crypto.randomUUID();
+    const finalEmail = (email && typeof email === 'string' && email.trim()) ? email.trim() : 'patient@walkin.clinic';
+    const finalAmount = typeof amount === 'number' && !isNaN(amount) ? amount : 800;
+
+    const newAppointment: Appointment = {
+      id: appointmentId,
+      fullName: fullName.trim(),
+      phone: phone.trim(),
+      email: finalEmail,
+      age: Number(age) || 30,
+      reason: reason?.trim() || 'General Consultation',
+      date,
+      time,
+      message: message ? String(message).trim() : '',
+      createdAt: new Date().toISOString(),
+      status: 'confirmed',
+      paymentStatus: paymentStatus as 'paid' | 'pending',
+      amount: finalAmount,
+      paymentMethod: paymentMethod as any,
+      paymentId: `${paymentMethod.toUpperCase()}-${appointmentId.slice(0, 8).toUpperCase()}`,
+      paidAt: paymentStatus === 'paid' ? new Date().toISOString() : undefined,
+      notes: notes?.trim() || `${consultationType === 'offline' ? 'In-Clinic (Offline)' : 'Online (Google Meet)'} • Payment via ${paymentMethod}`,
+      consultationType: consultationType as 'online' | 'offline',
+    };
+
+    // Calendar sync & meeting invite
+    let meetLink = '';
+    let googleEventId = '';
+    let calendarScheduled = false;
+    let calendarMessage = '';
+
+    if (isGoogleConnected()) {
+      try {
+        const calResult = await createCalendarMeeting(newAppointment);
+        meetLink = calResult.meetLink;
+        googleEventId = calResult.eventId;
+        newAppointment.meetLink = meetLink || undefined;
+        newAppointment.googleEventId = googleEventId || undefined;
+        calendarScheduled = true;
+        calendarMessage = consultationType === 'offline'
+          ? 'In-clinic offline consultation scheduled on Google Calendar. Patient will receive the calendar invitation on email.'
+          : 'Google Meet meeting created. Video invite sent to patient and doctor email.';
+      } catch (calErr: any) {
+        console.error('Admin appointment calendar sync failed:', calErr);
+        calendarMessage = `Appointment saved, but calendar invite failed: ${calErr.message}`;
+      }
+    } else {
+      calendarMessage = 'Appointment booked. (Google Calendar is not authorized - connect in settings to auto-dispatch calendar invites)';
+    }
+
+    await saveAppointment(newAppointment);
+
+    return NextResponse.json(
+      {
+        success: true,
+        appointment: newAppointment,
+        calendarScheduled,
+        calendarMessage,
+        message: 'Appointment successfully scheduled from Admin Panel!',
+      },
+      { status: 201 }
+    );
+  } catch (err: unknown) {
+    console.error('Error booking admin appointment:', err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Failed to schedule appointment.' },
       { status: 500 }
     );
   }

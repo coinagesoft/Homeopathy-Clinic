@@ -53,12 +53,22 @@ export async function ensureDatabaseSchema(): Promise<void> {
       payment_id VARCHAR(128),
       paid_at VARCHAR(64),
       notes TEXT,
+      consultation_type VARCHAR(32) NOT NULL DEFAULT 'online',
       created_at VARCHAR(64) NOT NULL,
       INDEX idx_appt_date_time (appointment_date, appointment_time),
       INDEX idx_appt_email (email),
       INDEX idx_appt_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
+
+  // Safe migration for existing appointments table
+  try {
+    await pool.execute(`
+      ALTER TABLE appointments ADD COLUMN consultation_type VARCHAR(32) NOT NULL DEFAULT 'online'
+    `);
+  } catch {
+    // Column might already exist
+  }
 
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS patients (

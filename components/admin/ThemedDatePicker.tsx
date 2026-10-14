@@ -10,6 +10,7 @@ interface ThemedDatePickerProps {
   label?: string;
   existingOverrides?: DoctorOverride[];
   disabled?: boolean;
+  className?: string;
 }
 
 const MONTH_NAMES = [
@@ -76,6 +77,7 @@ export default function ThemedDatePicker({
   label = 'Target Date',
   existingOverrides = [],
   disabled = false,
+  className = '',
 }: ThemedDatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -240,7 +242,7 @@ export default function ThemedDatePicker({
   };
 
   return (
-    <div className="themed-datepicker-root" ref={containerRef}>
+    <div className={`themed-datepicker-root ${className}`.trim()} ref={containerRef}>
       {label && (
         <label className="themed-datepicker-label" htmlFor="themed-date-trigger">
           {label}

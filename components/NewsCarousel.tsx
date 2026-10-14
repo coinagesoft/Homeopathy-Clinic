@@ -211,7 +211,11 @@ export default function NewsCarousel() {
                       tabIndex={idx >= currentIndex && idx < currentIndex + 3 ? 0 : -1}
                     >
                       <span>Read Full Article</span>
-                      <span className="news-arrow-box" aria-hidden="true">&rsaquo;</span>
+                      <span className="news-arrow-box" aria-hidden="true">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </span>
                     </Link>
                   </div>
                 </div>

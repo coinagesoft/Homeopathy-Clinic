@@ -46,24 +46,54 @@ export async function GET(request: NextRequest) {
       .filter((a) => a.paymentStatus === 'pending' && a.status !== 'cancelled')
       .reduce((sum, a) => sum + (a.amount || 800), 0);
 
-    // 2. Revenue by Day (past 14 days)
-    const dailyData: { date: string; label: string; revenue: number; bookings: number }[] = [];
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-        d.getDate()
-      ).padStart(2, '0')}`;
-      const label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    // 2. Revenue & Bookings by Day: 15 days before, today, and 15 days onwards (31-day window)
+    const dailyData: {
+      date: string;
+      label: string;
+      dayNum: number;
+      monthShort: string;
+      revenue: number;
+      bookings: number;
+      isToday: boolean;
+      isFuture: boolean;
+    }[] = [];
 
-      const dayAppts = paidAppointments.filter((a) => a.date === iso);
-      const rev = dayAppts.reduce((sum, a) => sum + (a.amount || 800), 0);
+    const kolkataDateStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now); // "YYYY-MM-DD"
+    const [tYear, tMonth, tDay] = kolkataDateStr.split('-').map(Number);
+
+    for (let offset = -15; offset <= 15; offset++) {
+      const d = new Date(Date.UTC(tYear, tMonth - 1, tDay + offset, 12, 0, 0));
+      const yyyy = d.getUTCFullYear();
+      const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(d.getUTCDate()).padStart(2, '0');
+      const iso = `${yyyy}-${mm}-${dd}`;
+
+      const dayNum = d.getUTCDate();
+      const monthShort = d.toLocaleDateString('en-IN', { month: 'short', timeZone: 'UTC' });
+      const label = `${dayNum} ${monthShort}`;
+
+      // Appointments on this date (active, not cancelled)
+      const dayAllAppts = appointments.filter((a) => a.date === iso && a.status !== 'cancelled');
+      // Paid appointments on this date
+      const dayPaidAppts = dayAllAppts.filter(
+        (a) => a.paymentStatus === 'paid' || !a.paymentStatus
+      );
+      const rev = dayPaidAppts.reduce((sum, a) => sum + (a.amount || 800), 0);
 
       dailyData.push({
         date: iso,
         label,
+        dayNum,
+        monthShort,
         revenue: rev,
-        bookings: dayAppts.length,
+        bookings: dayAllAppts.length,
+        isToday: iso === todayIso,
+        isFuture: offset > 0,
       });
     }
 
