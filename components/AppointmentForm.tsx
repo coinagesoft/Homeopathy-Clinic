@@ -851,156 +851,164 @@ export default function AppointmentForm() {
               </p>
             </div>
 
-            {/* Preferred Date — Custom Interactive Calendar */}
-            <div
-              className={`field full calendar-booking-field ${errors.date ? 'invalid' : ''}`}
-              ref={calendarSectionRef}
-            >
-              <div className="calendar-field-header">
-                <label className="calendar-field-label">
-                  Choose Preferred Date <span>(Advance booking only &bull; Mon to Sat)</span>
-                </label>
-                <p className="calendar-field-desc">
-                  Select an available date from tomorrow onwards. The clinic is closed on Sundays.
-                </p>
-              </div>
+            {/* Unified Date & Time Scheduling Workspace (Side-by-Side to eliminate blank space) */}
+            <div className="field full datetime-booking-workspace">
+              <div className="datetime-booking-grid">
+                {/* 1. Preferred Date Column (Interactive Calendar) */}
+                <div
+                  className={`datetime-col-calendar ${errors.date ? 'invalid' : ''}`}
+                  ref={calendarSectionRef}
+                >
+                  <div className="calendar-field-header">
+                    <label className="calendar-field-label">
+                      Choose Preferred Date <span>(Mon to Sat)</span>
+                    </label>
+                    <p className="calendar-field-desc">
+                      Select an available date from tomorrow onwards. Clinic closed on Sundays.
+                    </p>
+                  </div>
 
-              <CalendarPicker
-                selectedDate={formData.date}
-                onSelectDate={handleCalendarDateSelect}
-                minDate={tomorrowIso}
-                disabled={isBusy}
-                doctorBlockedDates={doctorBlockedDates}
-              />
+                  <CalendarPicker
+                    selectedDate={formData.date}
+                    onSelectDate={handleCalendarDateSelect}
+                    minDate={tomorrowIso}
+                    disabled={isBusy}
+                    doctorBlockedDates={doctorBlockedDates}
+                  />
 
-              <input type="hidden" name="date" value={formData.date} />
+                  <input type="hidden" name="date" value={formData.date} />
 
-              {errors.date && (
-                <p className="error-text" id="date-error" style={{ marginTop: '8px' }}>
-                  {errors.date}
-                </p>
-              )}
-            </div>
-
-            {/* Time Slot Picker */}
-            <div className={`field full ${errors.time ? 'invalid' : ''}`}>
-              <input type="hidden" name="time" value={formData.time} />
-
-              <div className="slot-section" ref={slotSectionRef}>
-                <div className="slot-head">
-                  <h3>Choose a Consultation Time</h3>
-                  <p>Clinic hours: 9:00 AM to 6:00 PM, Monday to Saturday (Advance booking only)</p>
+                  {errors.date && (
+                    <p className="error-text" id="date-error" style={{ marginTop: '8px' }}>
+                      {errors.date}
+                    </p>
+                  )}
                 </div>
 
-                <p className="slot-date-note" id="slot-date-note">
-                  {!formData.date
-                    ? 'Select a date above to see available times.'
-                    : tomorrowIso && formData.date < tomorrowIso
-                    ? 'Same-day and past appointments cannot be booked online. Please select tomorrow or a later date.'
-                    : isSunday
-                    ? 'The clinic is closed on Sunday. Please choose another date.'
-                    : isDoctorDateBlocked
-                    ? `Dr. Aarav is unavailable on ${prettyDate} (${doctorBlockReason || 'Doctor on leave'}).`
-                    : isLoadingSlots
-                    ? 'Checking real-time calendar availability...'
-                    : `Available times on ${prettyDate}`}
-                </p>
+                {/* 2. Consultation Time Column (Available Time Slots) */}
+                <div
+                  className={`datetime-col-slots ${errors.time ? 'invalid' : ''}`}
+                  ref={slotSectionRef}
+                >
+                  <input type="hidden" name="time" value={formData.time} />
 
-                {tomorrowIso && formData.date && formData.date < tomorrowIso && (
-                  <div className="notice-warning" style={{ marginTop: '14px' }}>
-                    Appointments cannot be booked for current date or previous dates. Please select tomorrow or a later date.
+                  <div className="slot-section">
+                    <div className="slot-head">
+                      <h3>Choose Consultation Time</h3>
+                      <p>Clinic hours: 9:00 AM to 6:00 PM, Mon &ndash; Sat</p>
+                    </div>
+
+                    <p className="slot-date-note" id="slot-date-note">
+                      {!formData.date
+                        ? 'Select a date on the calendar to see available times.'
+                        : tomorrowIso && formData.date < tomorrowIso
+                        ? 'Same-day and past appointments cannot be booked online. Please select tomorrow or a later date.'
+                        : isSunday
+                        ? 'The clinic is closed on Sunday. Please choose another date.'
+                        : isDoctorDateBlocked
+                        ? `Dr. Aarav is unavailable on ${prettyDate} (${doctorBlockReason || 'Doctor on leave'}).`
+                        : isLoadingSlots
+                        ? 'Checking real-time calendar availability...'
+                        : `Available times on ${prettyDate}`}
+                    </p>
+
+                    {tomorrowIso && formData.date && formData.date < tomorrowIso && (
+                      <div className="notice-warning" style={{ marginTop: '10px' }}>
+                        Appointments cannot be booked for current date or previous dates. Please select tomorrow or a later date.
+                      </div>
+                    )}
+
+                    {isDoctorDateBlocked && (
+                      <div className="notice-warning" style={{ marginTop: '10px' }}>
+                        <strong>Doctor On Leave:</strong> Dr. Aarav is unavailable on this date ({doctorBlockReason || 'Doctor unavailable'}). Please select another date.
+                      </div>
+                    )}
+
+                    {!isSunday && !isDoctorDateBlocked && formData.date && (!tomorrowIso || formData.date >= tomorrowIso) && (
+                      <>
+                        <div className="slot-grid" id="slot-grid">
+                          {SLOTS.map((slot) => {
+                            const isDoctorBlocked = doctorBlockedSlots.includes(slot.value);
+                            const isBooked = serverBookedSlots.includes(slot.value);
+                            const isUnavailable = isBooked || isDoctorBlocked;
+                            const isSelected = formData.time === slot.value;
+                            return (
+                              <button
+                                key={slot.value}
+                                type="button"
+                                className={`slot-btn ${
+                                  isDoctorBlocked ? 'doctor-blocked' : isBooked ? 'booked' : 'open'
+                                } ${isSelected ? 'selected' : ''}`}
+                                disabled={isUnavailable || isBusy}
+                                aria-label={
+                                  isDoctorBlocked
+                                    ? `${slot.label} (Doctor Unavailable)`
+                                    : isBooked
+                                    ? `${slot.label} (Booked)`
+                                    : `${slot.label} (Available)`
+                                }
+                                onClick={() => handleSlotSelect(slot.value)}
+                              >
+                                <span className="slot-time">{slot.label}</span>
+                                <span
+                                  className={`slot-badge ${
+                                    isDoctorBlocked
+                                      ? 'badge-doctor-blocked'
+                                      : isBooked
+                                      ? 'badge-booked'
+                                      : 'badge-open'
+                                  }`}
+                                >
+                                  {isDoctorBlocked ? 'Unavailable' : isBooked ? 'Booked' : 'Available'}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="slot-legend">
+                          <span className="legend-item">
+                            <span className="legend-dot dot-open"></span> Available
+                          </span>
+                          <span className="legend-item">
+                            <span className="legend-dot dot-booked"></span> Already Booked
+                          </span>
+                          <span className="legend-item">
+                            <span className="legend-dot dot-leave"></span> Doctor Blocked
+                          </span>
+                          <span className="legend-item">
+                            <span className="legend-dot dot-selected"></span> Selected
+                          </span>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Selected Date & Time Confirmation Banner */}
+                    {formData.date && formData.time && !isSunday && (
+                      <div className="selected-slot-banner" aria-live="polite">
+                        <div className="slot-banner-icon">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                        </div>
+                        <div className="slot-banner-content">
+                          <strong>Confirmed Selection:</strong>
+                          <span>{prettyDate} at {selectedSlotLabel}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {errors.time && (
+                      <p className="error-text" id="time-error" style={{ marginTop: '10px' }}>
+                        {errors.time}
+                      </p>
+                    )}
+
+                    <p className="slot-note" style={{ marginTop: '10px' }}>
+                      Slots marked Booked are already reserved in Dr. Aarav&apos;s Google Calendar.
+                    </p>
                   </div>
-                )}
-
-                {isDoctorDateBlocked && (
-                  <div className="notice-warning" style={{ marginTop: '14px' }}>
-                    <strong>Doctor On Leave:</strong> Dr. Aarav is unavailable on this date ({doctorBlockReason || 'Doctor unavailable'}). Please select another date.
-                  </div>
-                )}
-
-                {!isSunday && !isDoctorDateBlocked && formData.date && (!tomorrowIso || formData.date >= tomorrowIso) && (
-                  <>
-                    <div className="slot-grid" id="slot-grid">
-                      {SLOTS.map((slot) => {
-                        const isDoctorBlocked = doctorBlockedSlots.includes(slot.value);
-                        const isBooked = serverBookedSlots.includes(slot.value);
-                        const isUnavailable = isBooked || isDoctorBlocked;
-                        const isSelected = formData.time === slot.value;
-                        return (
-                          <button
-                            key={slot.value}
-                            type="button"
-                            className={`slot-btn ${
-                              isDoctorBlocked ? 'doctor-blocked' : isBooked ? 'booked' : 'open'
-                            } ${isSelected ? 'selected' : ''}`}
-                            disabled={isUnavailable || isBusy}
-                            aria-label={
-                              isDoctorBlocked
-                                ? `${slot.label} (Doctor Unavailable)`
-                                : isBooked
-                                ? `${slot.label} (Booked)`
-                                : `${slot.label} (Available)`
-                            }
-                            onClick={() => handleSlotSelect(slot.value)}
-                          >
-                            <span className="slot-time">{slot.label}</span>
-                            <span
-                              className={`slot-badge ${
-                                isDoctorBlocked
-                                  ? 'badge-doctor-blocked'
-                                  : isBooked
-                                  ? 'badge-booked'
-                                  : 'badge-open'
-                              }`}
-                            >
-                              {isDoctorBlocked ? 'Unavailable' : isBooked ? 'Booked' : 'Available'}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="slot-legend">
-                      <span className="legend-item">
-                        <span className="legend-dot dot-open"></span> Available
-                      </span>
-                      <span className="legend-item">
-                        <span className="legend-dot dot-booked"></span> Already Booked
-                      </span>
-                      <span className="legend-item">
-                        <span className="legend-dot dot-leave"></span> Doctor Blocked
-                      </span>
-                      <span className="legend-item">
-                        <span className="legend-dot dot-selected"></span> Selected
-                      </span>
-                    </div>
-                  </>
-                )}
-
-                {/* Selected Date & Time Confirmation Banner */}
-                {formData.date && formData.time && !isSunday && (
-                  <div className="selected-slot-banner" aria-live="polite">
-                    <div className="slot-banner-icon">
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                      </svg>
-                    </div>
-                    <div className="slot-banner-content">
-                      <strong>Confirmed Appointment Selection:</strong>
-                      <span>{prettyDate} at {selectedSlotLabel}</span>
-                    </div>
-                  </div>
-                )}
-
-                {errors.time && (
-                  <p className="error-text" id="time-error" style={{ marginTop: '10px' }}>
-                    {errors.time}
-                  </p>
-                )}
-
-                <p className="slot-note" style={{ marginTop: '14px' }}>
-                  Slots marked Booked are already reserved in Dr. Aarav&apos;s Google Calendar.
-                </p>
+                </div>
               </div>
             </div>
 
