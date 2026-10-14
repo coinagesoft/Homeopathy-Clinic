@@ -428,8 +428,9 @@ p {
 }
 
 .deco-hero-circle {
-  top: 70px;
-  left: 16%;
+  /* Keep this accent in the outer gutter instead of over the hero badge. */
+  top: 112px;
+  left: 5%;
   width: 22px;
   height: 22px;
   border-radius: 50%;

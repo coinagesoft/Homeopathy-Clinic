@@ -45,13 +45,13 @@ export default function AdminHeader({
               <strong>Dr. Aarav Mehta</strong>
               <span>Admin Portal</span>
             </Link>
-            <span className="admin-badge-doctor">
+            {/* <span className="admin-badge-doctor">
               {adminUser?.email ? `${adminUser.email} • Verified` : 'BHMS, MD (Homeopathy) • Pune'}
-            </span>
+            </span> */}
           </div>
 
           <div className="admin-topbar-right">
-            <button
+            {/* <button
               type="button"
               className="btn-quick-book"
               onClick={onQuickBook}
@@ -59,9 +59,9 @@ export default function AdminHeader({
             >
               <IconPlus />
               <span>Book Appointment</span>
-            </button>
+            </button> */}
 
-            <button
+            {/* <button
               type="button"
               className="btn-quick-leave"
               onClick={() => setActiveTab('availability')}
@@ -69,12 +69,12 @@ export default function AdminHeader({
             >
               <IconPlus />
               <span>Set Doctor Leave</span>
-            </button>
+            </button> */}
 
-            <Link href="/appointment" className="btn-portal-view" target="_blank">
+            {/* <Link href="/appointment" className="btn-portal-view" target="_blank">
               <span>Open Booking Portal</span>
               <IconExternalLink />
-            </Link>
+            </Link> */}
 
             <button type="button" className="btn-logout" onClick={onLogout}>
               <IconLogOut />
