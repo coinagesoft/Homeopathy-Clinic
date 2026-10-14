@@ -535,6 +535,7 @@ export default function AdminPage() {
           <div className="tab-pane-fade">
             <DoctorAvailabilityManager
               overrides={overrides}
+              appointments={appointments}
               onOverridesChange={setOverrides}
               onRefresh={async () => {
                 await loadOverrides();

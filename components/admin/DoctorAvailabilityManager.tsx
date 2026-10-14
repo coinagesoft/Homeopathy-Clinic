@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { DoctorOverride } from '@/lib/availability';
+import { Appointment } from '@/lib/storage';
 import ThemedDatePicker from './ThemedDatePicker';
 
 const ALL_SLOTS = [
@@ -27,12 +28,14 @@ const PRESET_REASONS = [
 
 interface DoctorAvailabilityManagerProps {
   overrides: DoctorOverride[];
+  appointments?: Appointment[];
   onRefresh: () => void | Promise<void>;
   onOverridesChange?: (nextOverrides: DoctorOverride[]) => void;
 }
 
 export default function DoctorAvailabilityManager({
   overrides,
+  appointments = [],
   onRefresh,
   onOverridesChange,
 }: DoctorAvailabilityManagerProps) {
@@ -55,6 +58,17 @@ export default function DoctorAvailabilityManager({
     null
   );
 
+  const bookedSlots = new Set(
+    appointments
+      .filter((appointment) => appointment.date === date && appointment.status !== 'cancelled')
+      .map((appointment) => appointment.time)
+  );
+
+  const handleDateChange = (nextDate: string) => {
+    setDate(nextDate);
+    setSelectedSlots([]);
+  };
+
   const toggleSlot = (slotVal: string) => {
     setSelectedSlots((prev) =>
       prev.includes(slotVal) ? prev.filter((s) => s !== slotVal) : [...prev, slotVal]
@@ -62,7 +76,7 @@ export default function DoctorAvailabilityManager({
   };
 
   const handleSelectAllSlots = () => {
-    setSelectedSlots(ALL_SLOTS.map((s) => s.value));
+    setSelectedSlots(ALL_SLOTS.filter((s) => !bookedSlots.has(s.value)).map((s) => s.value));
   };
 
   const handleClearSlots = () => {
@@ -207,7 +221,7 @@ export default function DoctorAvailabilityManager({
   return (
     <div className="admin-availability-section">
       {/* Informational Guidance Banner */}
-      <div className="admin-info-banner">
+      {/* <div className="admin-info-banner">
         <div className="banner-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
@@ -221,7 +235,7 @@ export default function DoctorAvailabilityManager({
             Block entire days (e.g. Next Monday) or individual consultation slots. Overrides take effect immediately across the patient booking portal and prevent double-booking.
           </p>
         </div>
-      </div>
+      </div> */}
 
       {feedback && (
         <div className={`admin-alert alert-${feedback.type}`} role="status">
@@ -239,7 +253,7 @@ export default function DoctorAvailabilityManager({
             <div className="form-group datepicker-form-group">
               <ThemedDatePicker
                 value={date}
-                onChange={setDate}
+                onChange={handleDateChange}
                 minDate={tomorrowIso}
                 label="Target Date"
                 existingOverrides={overrides}
@@ -291,15 +305,22 @@ export default function DoctorAvailabilityManager({
                 <div className="slot-chips-grid">
                   {ALL_SLOTS.map((s) => {
                     const isSelected = selectedSlots.includes(s.value);
+                    const isBooked = bookedSlots.has(s.value);
                     return (
                       <button
                         key={s.value}
                         type="button"
-                        className={`slot-chip ${isSelected ? 'chip-blocked' : ''}`}
+                        className={`slot-chip ${isSelected ? 'chip-blocked' : ''} ${isBooked ? 'chip-booked' : ''}`}
+                        disabled={isBooked}
                         onClick={() => toggleSlot(s.value)}
+                        title={isBooked ? 'This time slot is already booked' : undefined}
                       >
                         <span>{s.label}</span>
-                        {isSelected && <span className="chip-mark">&times; Block</span>}
+                        {isBooked ? (
+                          <span className="chip-booked-mark">Booked</span>
+                        ) : isSelected ? (
+                          <span className="chip-mark">&times; Block</span>
+                        ) : null}
                       </button>
                     );
                   })}

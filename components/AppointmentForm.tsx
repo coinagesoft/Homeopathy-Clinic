@@ -196,8 +196,27 @@ export default function AppointmentForm() {
     loadRazorpayCheckoutScript();
   }, []);
 
+  // Keep an already-open booking page in sync with doctor blackouts set in admin.
+  useEffect(() => {
+    const refreshAvailability = () => {
+      if (document.visibilityState !== 'visible') return;
+      fetchDoctorAvailability();
+      preloadBulkCalendar();
+    };
+
+    window.addEventListener('focus', refreshAvailability);
+    document.addEventListener('visibilitychange', refreshAvailability);
+    const intervalId = window.setInterval(refreshAvailability, 15_000);
+
+    return () => {
+      window.removeEventListener('focus', refreshAvailability);
+      document.removeEventListener('visibilitychange', refreshAvailability);
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
   const preloadBulkCalendar = () => {
-    fetch('/api/appointments?bulk=true')
+    fetch(`/api/appointments?bulk=true&t=${Date.now()}`, { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data.blockedDates)) {
@@ -233,7 +252,7 @@ export default function AppointmentForm() {
   };
 
   const fetchDoctorAvailability = () => {
-    fetch('/api/availability')
+    fetch(`/api/availability?t=${Date.now()}`, { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data.blockedDates)) {

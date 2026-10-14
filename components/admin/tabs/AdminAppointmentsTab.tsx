@@ -13,6 +13,9 @@ import {
   IconFileText,
   IconVideo,
   IconBuilding,
+  IconSearch,
+  IconFilter,
+  IconTable,
 } from '@/components/admin/AdminIcons';
 import { AdminStats } from '@/components/admin/types';
 
@@ -69,11 +72,17 @@ export default function AdminAppointmentsTab({
   onUpdatePayment,
   onDeleteAppointment,
 }: AdminAppointmentsTabProps) {
+  const [sortBy, setSortBy] = React.useState<'latest' | 'oldest' | 'name' | 'amount'>('latest');
+
   const hasActiveFilters =
-    searchQuery || statusFilter !== 'all' || timeFilter !== 'all' || modeFilter !== 'all';
+    Boolean(searchQuery.trim()) ||
+    statusFilter !== 'all' ||
+    timeFilter !== 'all' ||
+    modeFilter !== 'all' ||
+    sortBy !== 'latest';
 
   const filteredAppointments = React.useMemo(() => {
-    let result = appointments;
+    let result = [...appointments];
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       result = result.filter(
@@ -101,120 +110,201 @@ export default function AdminAppointmentsTab({
     if (modeFilter !== 'all') {
       result = result.filter((a) => a.consultationType === modeFilter);
     }
+
+    // Sort order
+    result.sort((a, b) => {
+      const dtA = `${a.date}T${a.time}`;
+      const dtB = `${b.date}T${b.time}`;
+      if (sortBy === 'latest') return dtB.localeCompare(dtA);
+      if (sortBy === 'oldest') return dtA.localeCompare(dtB);
+      if (sortBy === 'name') return a.fullName.localeCompare(b.fullName);
+      if (sortBy === 'amount') return (b.amount || 800) - (a.amount || 800);
+      return 0;
+    });
+
     return result;
-  }, [appointments, searchQuery, statusFilter, timeFilter, modeFilter]);
+  }, [appointments, searchQuery, statusFilter, timeFilter, modeFilter, sortBy]);
 
   const handleResetFilters = () => {
     setSearchQuery('');
     setStatusFilter('all');
     setTimeFilter('all');
     setModeFilter('all');
+    setSortBy('latest');
   };
 
   return (
     <div className="tab-pane-fade">
-      {/* Controls & Filter Bar */}
-      <div className="table-controls-bar">
-        {/* Search Input */}
-        <div className="search-box-wrap">
-          <input
-            type="text"
-            placeholder="Search by patient name, phone, email, reason..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="admin-search-input"
-          />
+      {/* Appointments Header Row */}
+      <div className="directory-header-row">
+        <div>
+          <h3 className="section-title">Appointments &amp; Bookings</h3>
+          <p className="section-subtitle">
+            Manage patient bookings, monitor daily clinic schedules, and coordinate consultations.
+          </p>
         </div>
 
-        {/* Consultation Mode Filter */}
-        <div className="filter-select-wrap">
-          <label>Mode:</label>
-          <select
-            value={modeFilter}
-            onChange={(e) => setModeFilter(e.target.value as 'all' | 'offline' | 'online')}
-            className="admin-select"
-          >
-            <option value="all">All Modes</option>
-            <option value="offline">In-Clinic (Offline)</option>
-            <option value="online">Online (Google Meet)</option>
-          </select>
-        </div>
+        {/* View Mode Toggle and Primary Actions */}
+        <div className="appt-header-actions">
+          <div className="view-mode-toggle" role="group" aria-label="Switch view format">
+            <button
+              type="button"
+              className={`btn-view-toggle ${apptViewMode === 'table' ? 'active' : ''}`}
+              onClick={() => setApptViewMode('table')}
+              title="Tabular View"
+            >
+              <IconTable size={15} />
+              <span>Table</span>
+            </button>
+            <button
+              type="button"
+              className={`btn-view-toggle ${apptViewMode === 'calendar' ? 'active' : ''}`}
+              onClick={() => setApptViewMode('calendar')}
+              title="Interactive Calendar View"
+            >
+              <IconCalendar size={15} />
+              <span>Calendar</span>
+            </button>
+          </div>
 
-        {/* Status Filter */}
-        <div className="filter-select-wrap">
-          <label>Status:</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="admin-select"
-          >
-            <option value="all">All Statuses</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="no-show">No Show</option>
-          </select>
-        </div>
-
-        {/* Timeframe Filter */}
-        <div className="filter-select-wrap">
-          <label>Timeframe:</label>
-          <select
-            value={timeFilter}
-            onChange={(e) => setTimeFilter(e.target.value)}
-            className="admin-select"
-          >
-            <option value="all">All Dates</option>
-            <option value="today">Today</option>
-            <option value="upcoming">Upcoming</option>
-            <option value="past">Past</option>
-          </select>
-        </div>
-
-        {/* Table / Calendar View Toggle */}
-        <div className="view-mode-tabs" role="tablist" aria-label="Appointment view format">
           <button
             type="button"
-            className={`view-toggle-btn ${apptViewMode === 'table' ? 'active' : ''}`}
-            onClick={() => setApptViewMode('table')}
-            title="List / Table View"
+            className="btn-admin-primary"
+            onClick={() => onQuickBook()}
+            title="Book new appointment"
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="8" y1="6" x2="21" y2="6" />
-              <line x1="8" y1="12" x2="21" y2="12" />
-              <line x1="8" y1="18" x2="21" y2="18" />
-              <line x1="3" y1="6" x2="3.01" y2="6" />
-              <line x1="3" y1="12" x2="3.01" y2="12" />
-              <line x1="3" y1="18" x2="3.01" y2="18" />
-            </svg>
-            <span>Table</span>
+            <IconPlus />
+            <span>Book Appointment</span>
           </button>
+
           <button
             type="button"
-            className={`view-toggle-btn ${apptViewMode === 'calendar' ? 'active' : ''}`}
-            onClick={() => setApptViewMode('calendar')}
-            title="Interactive Calendar View"
+            onClick={onRefresh}
+            className="btn-reload"
+            title="Refresh records"
           >
-            <IconCalendar size={15} />
-            <span>Calendar</span>
+            <IconRefresh size={14} />
+            <span>Refresh</span>
           </button>
         </div>
+      </div>
 
-        {/* Quick Book Button */}
-        <button
-          type="button"
-          className="btn-admin-primary"
-          onClick={() => onQuickBook()}
-          title="Book appointment and collect cash"
-        >
-          <IconPlus />
-          <span>Book Appointment</span>
-        </button>
+      {/* Search and Filters Toolbar Card (Matches Patient Directory Design) */}
+      <div className="directory-toolbar-card">
+        <div className="directory-toolbar-grid appt-toolbar-grid">
+          {/* 1. Live Search Input */}
+          <div className="search-input-wrap">
+            <span className="search-icon-box" aria-hidden="true">
+              <IconSearch size={16} />
+            </span>
+            <input
+              type="text"
+              className="directory-search-input"
+              placeholder="Search by patient name, phone, email, reason, payment ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                className="btn-clear-search"
+                onClick={() => setSearchQuery('')}
+                title="Clear search query"
+              >
+                <IconCross />
+              </button>
+            )}
+          </div>
 
-        <button type="button" onClick={onRefresh} className="btn-reload" title="Refresh records">
-          <IconRefresh />
-          <span>Refresh</span>
-        </button>
+          {/* 2. Consultation Mode Filter */}
+          <div className="filter-select-wrap">
+            <span className="filter-icon-box" aria-hidden="true">
+              <IconBuilding size={14} />
+            </span>
+            <select
+              className="directory-filter-select"
+              value={modeFilter}
+              onChange={(e) =>
+                setModeFilter(e.target.value as 'all' | 'offline' | 'online')
+              }
+            >
+              <option value="all">All Modes ({appointments.length})</option>
+              <option value="offline">In-Clinic (Offline)</option>
+              <option value="online">Online (Google Meet)</option>
+            </select>
+          </div>
+
+          {/* 3. Status Filter */}
+          <div className="filter-select-wrap">
+            <span className="filter-icon-box" aria-hidden="true">
+              <IconFilter size={14} />
+            </span>
+            <select
+              className="directory-filter-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All Statuses</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="no-show">No Show</option>
+            </select>
+          </div>
+
+          {/* 4. Timeframe Filter */}
+          <div className="filter-select-wrap">
+            <span className="filter-icon-box" aria-hidden="true">
+              <IconCalendar size={14} />
+            </span>
+            <select
+              className="directory-filter-select"
+              value={timeFilter}
+              onChange={(e) => setTimeFilter(e.target.value)}
+            >
+              <option value="all">All Dates</option>
+              <option value="today">Today Only</option>
+              <option value="upcoming">Upcoming Only</option>
+              <option value="past">Past History</option>
+            </select>
+          </div>
+
+          {/* 5. Sort Dropdown */}
+          <div className="filter-select-wrap">
+            <select
+              className="directory-filter-select sort-select"
+              value={sortBy}
+              onChange={(e) =>
+                setSortBy(
+                  e.target.value as 'latest' | 'oldest' | 'name' | 'amount'
+                )
+              }
+            >
+              <option value="latest">Sort: Date (Latest First)</option>
+              <option value="oldest">Sort: Date (Oldest First)</option>
+              <option value="name">Sort: Patient Name (A to Z)</option>
+              <option value="amount">Sort: Fee (High to Low)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Results row at bottom of card */}
+        <div className="directory-results-row">
+          <span>
+            Showing <strong>{filteredAppointments.length}</strong> of{' '}
+            <strong>{appointments.length}</strong> scheduled appointments
+          </span>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="btn-reset-filters"
+              onClick={handleResetFilters}
+            >
+              <IconCross />
+              <span>Reset Filters</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main View Area: Calendar View vs Table View */}

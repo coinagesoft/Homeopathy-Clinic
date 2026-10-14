@@ -3355,6 +3355,36 @@ p {
   gap: 12px;
 }
 
+.appt-toolbar-grid,
+.payments-toolbar-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.15fr 1.15fr 1.15fr 1.25fr;
+  gap: 12px;
+}
+
+.appt-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1200px) {
+  .directory-toolbar-grid,
+  .appt-toolbar-grid,
+  .payments-toolbar-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .directory-toolbar-grid,
+  .appt-toolbar-grid,
+  .payments-toolbar-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .search-input-wrap {
   position: relative;
   display: flex;
@@ -5124,9 +5154,23 @@ p {
   font-weight: 700;
 }
 
+.slot-chip.chip-booked,
+.slot-chip.chip-booked:disabled {
+  background: #f1f3f8;
+  border-color: #d8deeb;
+  color: #7b8498;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
 .chip-mark {
   font-size: 9.5px;
   color: var(--secondary);
+}
+
+.chip-booked-mark {
+  font-size: 9.5px;
+  color: #d04444;
 }
 
 .preset-tags-wrap {
