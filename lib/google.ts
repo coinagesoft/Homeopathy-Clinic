@@ -238,6 +238,99 @@ Doctor Email: ${DOCTOR_EMAIL}`;
 }
 
 /**
+ * Reschedules an existing Google Calendar event to a new date and time.
+ * Automatically updates start/end time, summary, location, and sends
+ * updated email invitations to attendees with sendUpdates: 'all'.
+ */
+export async function rescheduleCalendarMeeting(
+  appointment: Appointment,
+  newDate: string,
+  newTime: string,
+  newConsultationType?: 'online' | 'offline',
+  durationMinutes = 45
+): Promise<{ meetLink?: string; eventId?: string }> {
+  const oauth2Client = getOAuth2Client();
+  const isOffline = (newConsultationType || appointment.consultationType) === 'offline';
+
+  if (!oauth2Client || !isGoogleConnected()) {
+    return {
+      meetLink: isOffline ? undefined : appointment.meetLink,
+      eventId: appointment.googleEventId,
+    };
+  }
+
+  const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+  const start = new Date(`${newDate}T${newTime}:00+05:30`);
+  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+  const startIso = start.toISOString();
+  const endIso = end.toISOString();
+
+  const summary = isOffline
+    ? `[In-Clinic / Offline] Consultation: ${appointment.fullName} - Dr. Aarav Mehta Clinic`
+    : `Homeopathic Consultation: ${appointment.fullName} - Dr. Aarav Mehta`;
+
+  const location = isOffline
+    ? '123 Green Park Road, Near Deccan Gymkhana, Pune, Maharashtra 411004'
+    : appointment.meetLink || 'Google Meet Video Call';
+
+  const description = isOffline
+    ? `In-Clinic Homeopathic Consultation (Rescheduled)
+Patient: ${appointment.fullName}
+Phone: ${appointment.phone}
+Email: ${appointment.email}
+Reason for Visit: ${appointment.reason}
+Mode: In-Clinic / In-Person Consultation
+Clinic Address: 123 Green Park Road, Near Deccan Gymkhana, Pune, Maharashtra 411004
+Payment: ${appointment.paymentMethod || 'Cash'} (₹${appointment.amount || 800})`
+    : `Online Video Consultation (Rescheduled)
+Patient: ${appointment.fullName}
+Phone: ${appointment.phone}
+Email: ${appointment.email}
+Reason for Visit: ${appointment.reason}
+Mode: 📹 Online Video (Google Meet)
+Meet Link: ${appointment.meetLink || 'Generated on Google Calendar'}
+Payment: ${appointment.paymentMethod || 'Online'} (₹${appointment.amount || 800})`;
+
+  if (appointment.googleEventId) {
+    try {
+      const response = await calendar.events.patch({
+        calendarId: 'primary',
+        eventId: appointment.googleEventId,
+        sendUpdates: 'all', // Dispatches updated calendar invite to attendees
+        requestBody: {
+          summary,
+          location,
+          description,
+          start: {
+            dateTime: startIso,
+            timeZone: 'Asia/Kolkata',
+          },
+          end: {
+            dateTime: endIso,
+            timeZone: 'Asia/Kolkata',
+          },
+        },
+      });
+
+      return {
+        meetLink: response.data.hangoutLink || appointment.meetLink,
+        eventId: response.data.id || appointment.googleEventId,
+      };
+    } catch (patchErr) {
+      console.warn('Failed to patch existing event, falling back to insert:', patchErr);
+    }
+  }
+
+  // Fallback to creating a new event if none existed
+  return createCalendarMeeting({
+    ...appointment,
+    date: newDate,
+    time: newTime,
+    consultationType: newConsultationType || appointment.consultationType,
+  });
+}
+
+/**
  * Queries Google Calendar for booked events on a given date (Asia/Kolkata).
  * Returns array of booked time slot strings (e.g. ['09:00', '09:45']).
  */

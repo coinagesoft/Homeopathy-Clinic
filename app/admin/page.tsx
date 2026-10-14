@@ -21,6 +21,7 @@ import AdminPaymentsTab from '@/components/admin/tabs/AdminPaymentsTab';
 import DoctorAvailabilityManager from '@/components/admin/DoctorAvailabilityManager';
 import PatientHistoryModal from '@/components/admin/PatientHistoryModal';
 import AdminBookAppointmentModal from '@/components/admin/AdminBookAppointmentModal';
+import AdminRescheduleModal from '@/components/admin/AdminRescheduleModal';
 
 // Customer identity resolution helpers
 function getCustomerKey(email?: string, phone?: string): string {
@@ -81,6 +82,9 @@ export default function AdminPage() {
   // Admin Book Appointment Modal State
   const [showBookModal, setShowBookModal] = useState(false);
   const [bookingDate, setBookingDate] = useState('');
+
+  // Admin Reschedule Appointment Drawer State
+  const [rescheduleAppointment, setRescheduleAppointment] = useState<Appointment | null>(null);
 
   // Revenue Analytics Data
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
@@ -513,6 +517,7 @@ export default function AdminPage() {
               setShowBookModal(true);
             }}
             onSelectPatient={(appt) => setSelectedPatient(findPatientGroup(appt))}
+            onReschedule={(appt) => setRescheduleAppointment(appt)}
             onUpdateStatus={handleUpdateStatus}
             onUpdatePayment={handleUpdatePayment}
             onDeleteAppointment={handleDeleteAppointment}
@@ -554,6 +559,7 @@ export default function AdminPage() {
           onClose={() => setSelectedPatient(null)}
           onUpdateNotes={handleUpdateNotes}
           onUpdateStatus={handleUpdateStatus}
+          onReschedule={(appt) => setRescheduleAppointment(appt)}
         />
       )}
 
@@ -562,6 +568,16 @@ export default function AdminPage() {
         isOpen={showBookModal}
         initialDate={bookingDate}
         onClose={() => setShowBookModal(false)}
+        onSuccess={() => {
+          loadAppointments();
+          loadRevenue();
+        }}
+      />
+
+      {/* Admin Reschedule Appointment Slide-Over Drawer */}
+      <AdminRescheduleModal
+        appointment={rescheduleAppointment}
+        onClose={() => setRescheduleAppointment(null)}
         onSuccess={() => {
           loadAppointments();
           loadRevenue();

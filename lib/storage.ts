@@ -318,6 +318,20 @@ export async function isSlotBooked(date: string, time: string): Promise<boolean>
   return booked.includes(time);
 }
 
+export async function isSlotBookedExcluding(
+  date: string,
+  time: string,
+  excludeId: string
+): Promise<boolean> {
+  await ensureDatabaseSchema();
+  const pool = getPool();
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT id FROM appointments WHERE appointment_date = ? AND appointment_time = ? AND status != 'cancelled' AND id != ?`,
+    [date, time, excludeId]
+  );
+  return rows.length > 0;
+}
+
 export function getGoogleTokens(): Credentials | null {
   if (process.env.GOOGLE_REFRESH_TOKEN) {
     const refreshToken = process.env.GOOGLE_REFRESH_TOKEN.trim().replace(/^["']|["']$/g, '');

@@ -30,6 +30,7 @@ interface AdminAppointmentsTabProps {
   onRefresh: () => void;
   onQuickBook: (dateIso?: string) => void;
   onSelectPatient: (appt: Appointment) => void;
+  onReschedule: (appt: Appointment) => void;
   onUpdateStatus: (
     id: string,
     status: 'confirmed' | 'completed' | 'cancelled' | 'no-show'
@@ -59,6 +60,7 @@ export default function AdminAppointmentsTab({
   onRefresh,
   onQuickBook,
   onSelectPatient,
+  onReschedule,
   onUpdateStatus,
   onUpdatePayment,
   onDeleteAppointment,
@@ -335,6 +337,14 @@ export default function AdminAppointmentsTab({
                               Meet
                             </a>
                           )}
+                          <button
+                            type="button"
+                            className="action-btn-reschedule"
+                            title="Reschedule appointment date & time"
+                            onClick={() => onReschedule(appt)}
+                          >
+                            Reschedule
+                          </button>
                           <button
                             type="button"
                             className="action-btn-record"

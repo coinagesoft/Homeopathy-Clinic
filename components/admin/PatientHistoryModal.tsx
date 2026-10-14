@@ -14,6 +14,7 @@ interface PatientHistoryModalProps {
   onClose: () => void;
   onUpdateNotes: (appointmentId: string, notes: string) => Promise<void>;
   onUpdateStatus: (appointmentId: string, status: 'confirmed' | 'completed' | 'cancelled' | 'no-show') => Promise<void>;
+  onReschedule?: (appt: Appointment) => void;
 }
 
 function formatReadableDate(dateStr?: string) {
@@ -38,6 +39,7 @@ export default function PatientHistoryModal({
   onClose,
   onUpdateNotes,
   onUpdateStatus,
+  onReschedule,
 }: PatientHistoryModalProps) {
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [noteContent, setNoteContent] = useState('');
@@ -158,6 +160,18 @@ export default function PatientHistoryModal({
                             ? 'Refunded'
                             : 'Pending'}
                         </span>
+
+                        {onReschedule && appt.status !== 'cancelled' && (
+                          <button
+                            type="button"
+                            className="action-btn-reschedule"
+                            style={{ padding: '4px 10px', fontSize: '12px' }}
+                            onClick={() => onReschedule(appt)}
+                            title="Reschedule this appointment"
+                          >
+                            Reschedule
+                          </button>
+                        )}
                       </div>
                     </div>
 

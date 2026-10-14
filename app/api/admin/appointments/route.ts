@@ -2,16 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import {
   getAllAppointments,
+  getAppointmentById,
   updateAppointment,
   deleteAppointment,
   saveAppointment,
   isSlotBooked,
+  isSlotBookedExcluding,
   Appointment,
 } from '@/lib/storage';
 import { verifyAdminRequest } from '@/lib/adminAuth';
 import {
   isGoogleConnected,
   createCalendarMeeting,
+  rescheduleCalendarMeeting,
   DOCTOR_EMAIL,
 } from '@/lib/google';
 
@@ -131,12 +134,32 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { id, status, paymentStatus, paymentMethod, amount, notes } = body;
+    const {
+      id,
+      status,
+      paymentStatus,
+      paymentMethod,
+      amount,
+      notes,
+      date,
+      time,
+      consultationType,
+      isReschedule,
+      rescheduleReason,
+    } = body;
 
     if (!id || typeof id !== 'string') {
       return NextResponse.json(
         { error: 'Appointment ID is required.' },
         { status: 400 }
+      );
+    }
+
+    const existing = await getAppointmentById(id);
+    if (!existing) {
+      return NextResponse.json(
+        { error: 'Appointment not found.' },
+        { status: 404 }
       );
     }
 
@@ -152,6 +175,57 @@ export async function PATCH(request: NextRequest) {
     if (typeof amount === 'number') updates.amount = amount;
     if (typeof notes === 'string') updates.notes = notes;
 
+    let calendarRescheduled = false;
+
+    // Rescheduling Logic
+    if (isReschedule || date || time || (consultationType && consultationType !== existing.consultationType)) {
+      const targetDate = date || existing.date;
+      const targetTime = time || existing.time;
+      const targetType = consultationType || existing.consultationType || 'online';
+
+      // Verify slot availability if changing date or time
+      if (targetDate !== existing.date || targetTime !== existing.time) {
+        const isTaken = await isSlotBookedExcluding(targetDate, targetTime, id);
+        if (isTaken) {
+          return NextResponse.json(
+            { error: `The slot ${targetTime} on ${targetDate} is already booked by another appointment.` },
+            { status: 409 }
+          );
+        }
+      }
+
+      // Sync with Google Calendar if connected
+      if (isGoogleConnected()) {
+        try {
+          const calResult = await rescheduleCalendarMeeting(
+            existing,
+            targetDate,
+            targetTime,
+            targetType
+          );
+          if (calResult.meetLink) {
+            updates.meetLink = calResult.meetLink;
+          }
+          if (calResult.eventId) {
+            updates.googleEventId = calResult.eventId;
+            calendarRescheduled = true;
+          }
+        } catch (calErr) {
+          console.error('Failed to reschedule on Google Calendar:', calErr);
+        }
+      }
+
+      updates.date = targetDate;
+      updates.time = targetTime;
+      updates.consultationType = targetType;
+
+      // Append clinical audit note about rescheduling
+      if (rescheduleReason || targetDate !== existing.date || targetTime !== existing.time) {
+        const auditLog = `[Rescheduled on ${new Date().toLocaleDateString('en-IN')}: moved from ${existing.date} (${existing.time}) to ${targetDate} (${targetTime})${rescheduleReason ? ` - Reason: ${rescheduleReason}` : ''}]`;
+        updates.notes = existing.notes ? `${existing.notes}\n${auditLog}` : auditLog;
+      }
+    }
+
     const updated = await updateAppointment(id, updates);
     if (!updated) {
       return NextResponse.json(
@@ -161,8 +235,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     return NextResponse.json({
-      message: 'Appointment updated successfully.',
+      message: isReschedule ? 'Appointment rescheduled successfully.' : 'Appointment updated successfully.',
       appointment: updated,
+      calendarRescheduled,
     });
   } catch (err: unknown) {
     console.error('Error updating appointment:', err);
