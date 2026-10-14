@@ -258,17 +258,10 @@ export default function AdminPage() {
     }
   };
 
-  // Fetch Appointments & Stats
+  // Fetch Appointments & Stats (Fast In-Memory Cache)
   const loadAppointments = useCallback(() => {
     setIsLoadingAppointments(true);
-    const params = new URLSearchParams();
-    if (searchQuery) params.set('q', searchQuery);
-    if (statusFilter !== 'all') params.set('status', statusFilter);
-    if (timeFilter !== 'all') params.set('time', timeFilter);
-    if (modeFilter !== 'all') params.set('mode', modeFilter);
-    params.set('t', String(Date.now()));
-
-    adminFetch(`/api/admin/appointments?${params.toString()}`, { cache: 'no-store' })
+    adminFetch('/api/admin/appointments')
       .then((res) => res.json())
       .then((data) => {
         if (data.appointments) setAppointments(data.appointments);
@@ -276,11 +269,11 @@ export default function AdminPage() {
       })
       .catch((err) => console.error('Failed to load admin appointments:', err))
       .finally(() => setIsLoadingAppointments(false));
-  }, [searchQuery, statusFilter, timeFilter, modeFilter, adminFetch]);
+  }, [adminFetch]);
 
   // Fetch Revenue Analytics
   const loadRevenue = useCallback(() => {
-    adminFetch(`/api/admin/revenue?t=${Date.now()}`, { cache: 'no-store' })
+    adminFetch('/api/admin/revenue')
       .then((res) => res.json())
       .then((data) => {
         if (data.summary) setRevenueData(data);
@@ -290,7 +283,7 @@ export default function AdminPage() {
 
   // Fetch Doctor Overrides
   const loadOverrides = useCallback(() => {
-    return adminFetch(`/api/availability?t=${Date.now()}`, { cache: 'no-store' })
+    return adminFetch('/api/availability')
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data.overrides)) setOverrides(data.overrides);

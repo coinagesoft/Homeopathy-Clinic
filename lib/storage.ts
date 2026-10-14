@@ -1,6 +1,14 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import type { Credentials } from 'google-auth-library';
 import { getPool, ensureDatabaseSchema } from './db';
+import {
+  getFastAppointments,
+  updateCachedAppointment,
+  removeCachedAppointment,
+  getFastBookedSlotsForDate,
+  isFastSlotBooked,
+  isFastSlotBookedExcluding,
+} from './cache';
 
 export interface Appointment {
   id: string;
@@ -158,12 +166,7 @@ async function syncPatientAndPaymentTables(appt: Appointment): Promise<void> {
 }
 
 export async function getAllAppointments(): Promise<Appointment[]> {
-  await ensureDatabaseSchema();
-  const pool = getPool();
-  const [rows] = await pool.execute<AppointmentRow[]>(
-    `SELECT * FROM appointments ORDER BY appointment_date DESC, appointment_time DESC, created_at DESC`
-  );
-  return rows.map(mapRowToAppointment);
+  return getFastAppointments();
 }
 
 export async function getAppointmentById(id: string): Promise<Appointment | null> {
@@ -251,6 +254,7 @@ export async function saveAppointment(appointment: Appointment): Promise<Appoint
     consultationType,
   };
 
+  updateCachedAppointment(saved);
   await syncPatientAndPaymentTables(saved);
   return saved;
 }
@@ -280,6 +284,7 @@ export async function deleteAppointment(id: string): Promise<boolean> {
 
   await pool.execute(`DELETE FROM payments WHERE appointment_id = ?`, [id]);
   await pool.execute(`DELETE FROM appointments WHERE id = ?`, [id]);
+  removeCachedAppointment(id);
 
   if (existing) {
     const cleanEmail = existing.email.trim().toLowerCase();
@@ -304,18 +309,11 @@ export async function deleteAppointment(id: string): Promise<boolean> {
 }
 
 export async function getBookedSlotsForDate(date: string): Promise<string[]> {
-  await ensureDatabaseSchema();
-  const pool = getPool();
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT appointment_time FROM appointments WHERE appointment_date = ? AND status != 'cancelled'`,
-    [date]
-  );
-  return rows.map((r) => String(r.appointment_time));
+  return getFastBookedSlotsForDate(date);
 }
 
 export async function isSlotBooked(date: string, time: string): Promise<boolean> {
-  const booked = await getBookedSlotsForDate(date);
-  return booked.includes(time);
+  return isFastSlotBooked(date, time);
 }
 
 export async function isSlotBookedExcluding(
@@ -323,13 +321,7 @@ export async function isSlotBookedExcluding(
   time: string,
   excludeId: string
 ): Promise<boolean> {
-  await ensureDatabaseSchema();
-  const pool = getPool();
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id FROM appointments WHERE appointment_date = ? AND appointment_time = ? AND status != 'cancelled' AND id != ?`,
-    [date, time, excludeId]
-  );
-  return rows.length > 0;
+  return isFastSlotBookedExcluding(date, time, excludeId);
 }
 
 export function getGoogleTokens(): Credentials | null {

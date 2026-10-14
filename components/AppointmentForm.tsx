@@ -152,6 +152,19 @@ export default function AppointmentForm() {
   const [isDoctorDateBlocked, setIsDoctorDateBlocked] = useState(false);
   const [doctorBlockReason, setDoctorBlockReason] = useState('');
 
+  // Instant client-side slots cache for sub-millisecond date switching
+  const slotsCacheRef = useRef<
+    Map<
+      string,
+      {
+        bookedSlots: string[];
+        doctorBlockedSlots: string[];
+        isDoctorBlocked: boolean;
+        doctorBlockReason: string;
+      }
+    >
+  >(new Map());
+
   // Google status for doctor
   const [googleStatus, setGoogleStatus] = useState<{
     connected: boolean;
@@ -179,11 +192,48 @@ export default function AppointmentForm() {
 
     fetchGoogleStatus();
     fetchDoctorAvailability();
+    preloadBulkCalendar();
     loadRazorpayCheckoutScript();
   }, []);
 
+  const preloadBulkCalendar = () => {
+    fetch('/api/appointments?bulk=true')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.blockedDates)) {
+          setDoctorBlockedDates(data.blockedDates);
+        }
+        if (data.bookedSlotsByDate) {
+          const docSlotsByDate = data.doctorBlockedSlotsByDate || {};
+          const fullLeaves = new Set((data.blockedDates || []).map((b: { date: string }) => b.date));
+
+          Object.keys(data.bookedSlotsByDate).forEach((d) => {
+            const booked = data.bookedSlotsByDate[d] || [];
+            const docBlocked = docSlotsByDate[d] || [];
+            const isDocBlocked = fullLeaves.has(d);
+            slotsCacheRef.current.set(d, {
+              bookedSlots: Array.from(new Set([...booked, ...docBlocked])),
+              doctorBlockedSlots: docBlocked,
+              isDoctorBlocked: isDocBlocked,
+              doctorBlockReason: isDocBlocked ? 'Doctor on leave' : '',
+            });
+          });
+
+          // If current form date is already in cache, set immediately
+          if (formData.date && slotsCacheRef.current.has(formData.date)) {
+            const initialSlot = slotsCacheRef.current.get(formData.date)!;
+            setServerBookedSlots(initialSlot.bookedSlots);
+            setDoctorBlockedSlots(initialSlot.doctorBlockedSlots);
+            setIsDoctorDateBlocked(initialSlot.isDoctorBlocked);
+            setDoctorBlockReason(initialSlot.doctorBlockReason);
+          }
+        }
+      })
+      .catch((err) => console.error('Bulk calendar preload error:', err));
+  };
+
   const fetchDoctorAvailability = () => {
-    fetch(`/api/availability?t=${Date.now()}`, { cache: 'no-store' })
+    fetch('/api/availability')
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data.blockedDates)) {
@@ -226,7 +276,7 @@ export default function AppointmentForm() {
     }));
   }, []);
 
-  // Fetch booked slots whenever the selected date changes
+  // Fetch booked slots whenever the selected date changes (instant 0ms from cache)
   const fetchBookedSlots = React.useCallback((dateString: string) => {
     if (!dateString) return;
     const isSun = new Date(`${dateString}T00:00:00`).getDay() === 0;
@@ -238,22 +288,32 @@ export default function AppointmentForm() {
       return;
     }
 
+    // Check fast cache first (< 0.1ms instant UI)
+    const cached = slotsCacheRef.current.get(dateString);
+    if (cached) {
+      setServerBookedSlots(cached.bookedSlots);
+      setDoctorBlockedSlots(cached.doctorBlockedSlots);
+      setIsDoctorDateBlocked(cached.isDoctorBlocked);
+      setDoctorBlockReason(cached.doctorBlockReason);
+      setIsLoadingSlots(false);
+      return;
+    }
+
     setIsLoadingSlots(true);
-    fetch(`/api/appointments?date=${dateString}&t=${Date.now()}`, { cache: 'no-store' })
+    fetch(`/api/appointments?date=${dateString}`)
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data.bookedSlots)) {
-          setServerBookedSlots(data.bookedSlots);
-        } else {
-          setServerBookedSlots([]);
-        }
-        if (Array.isArray(data.doctorBlockedSlots)) {
-          setDoctorBlockedSlots(data.doctorBlockedSlots);
-        } else {
-          setDoctorBlockedSlots([]);
-        }
-        setIsDoctorDateBlocked(Boolean(data.isDoctorBlocked));
-        setDoctorBlockReason(data.doctorBlockReason || '');
+        const slotData = {
+          bookedSlots: Array.isArray(data.bookedSlots) ? data.bookedSlots : [],
+          doctorBlockedSlots: Array.isArray(data.doctorBlockedSlots) ? data.doctorBlockedSlots : [],
+          isDoctorBlocked: Boolean(data.isDoctorBlocked),
+          doctorBlockReason: data.doctorBlockReason || '',
+        };
+        slotsCacheRef.current.set(dateString, slotData);
+        setServerBookedSlots(slotData.bookedSlots);
+        setDoctorBlockedSlots(slotData.doctorBlockedSlots);
+        setIsDoctorDateBlocked(slotData.isDoctorBlocked);
+        setDoctorBlockReason(slotData.doctorBlockReason);
       })
       .catch((err) => console.error('Failed to load booked slots:', err))
       .finally(() => setIsLoadingSlots(false));

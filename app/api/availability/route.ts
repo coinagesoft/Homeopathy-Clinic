@@ -12,8 +12,10 @@ import { verifyAdminRequest } from '@/lib/adminAuth';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const overrides = await getAllDoctorOverrides();
-  const blockedDates = await getDoctorBlockedDates();
+  const [overrides, blockedDates] = await Promise.all([
+    getAllDoctorOverrides(),
+    getDoctorBlockedDates(),
+  ]);
 
   return NextResponse.json(
     {
@@ -22,7 +24,7 @@ export async function GET() {
     },
     {
       headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Cache-Control': 'public, max-age=10, stale-while-revalidate=30',
       },
     }
   );

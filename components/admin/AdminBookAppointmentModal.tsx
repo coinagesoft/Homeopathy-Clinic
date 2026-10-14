@@ -544,10 +544,10 @@ export default function AdminBookAppointmentModal({
                       }}
                       className="modal-input modal-select highlight-cash"
                     >
-                      <option value="Cash">💵 Cash (Desk Collection)</option>
-                      <option value="UPI">📱 UPI (QR / PhonePe / GPay)</option>
-                      <option value="Card">💳 Card / Swipe POS</option>
-                      <option value="Pending">⏳ Pending Settlement</option>
+                      <option value="Cash">Cash (Desk Collection)</option>
+                      <option value="UPI">UPI (QR / PhonePe / GPay)</option>
+                      <option value="Card">Card / Swipe POS</option>
+                      <option value="Pending">Pending Settlement</option>
                     </select>
                   </div>
 
@@ -558,8 +558,8 @@ export default function AdminBookAppointmentModal({
                       onChange={(e) => setPaymentStatus(e.target.value as 'paid' | 'pending')}
                       className={`modal-input modal-select ${paymentStatus === 'paid' ? 'status-paid-select' : 'status-pending-select'}`}
                     >
-                      <option value="paid">✅ Paid &amp; Settled</option>
-                      <option value="pending">⏳ Awaiting Payment</option>
+                      <option value="paid">Paid &amp; Settled</option>
+                      <option value="pending">Awaiting Payment</option>
                     </select>
                   </div>
                 </div>

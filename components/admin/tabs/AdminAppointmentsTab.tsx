@@ -9,6 +9,10 @@ import {
   IconRefresh,
   IconPlus,
   IconCross,
+  IconTrash,
+  IconFileText,
+  IconVideo,
+  IconBuilding,
 } from '@/components/admin/AdminIcons';
 import { AdminStats } from '@/components/admin/types';
 
@@ -67,6 +71,38 @@ export default function AdminAppointmentsTab({
 }: AdminAppointmentsTabProps) {
   const hasActiveFilters =
     searchQuery || statusFilter !== 'all' || timeFilter !== 'all' || modeFilter !== 'all';
+
+  const filteredAppointments = React.useMemo(() => {
+    let result = appointments;
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      result = result.filter(
+        (a) =>
+          a.fullName.toLowerCase().includes(q) ||
+          a.phone.includes(q) ||
+          a.email.toLowerCase().includes(q) ||
+          a.reason.toLowerCase().includes(q) ||
+          (a.paymentId && a.paymentId.toLowerCase().includes(q))
+      );
+    }
+    if (statusFilter !== 'all') {
+      result = result.filter((a) => a.status === statusFilter);
+    }
+    if (timeFilter !== 'all') {
+      const nowIso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+      if (timeFilter === 'today') {
+        result = result.filter((a) => a.date === nowIso);
+      } else if (timeFilter === 'upcoming') {
+        result = result.filter((a) => a.date >= nowIso && a.status !== 'cancelled');
+      } else if (timeFilter === 'past') {
+        result = result.filter((a) => a.date < nowIso);
+      }
+    }
+    if (modeFilter !== 'all') {
+      result = result.filter((a) => a.consultationType === modeFilter);
+    }
+    return result;
+  }, [appointments, searchQuery, statusFilter, timeFilter, modeFilter]);
 
   const handleResetFilters = () => {
     setSearchQuery('');
@@ -184,7 +220,7 @@ export default function AdminAppointmentsTab({
       {/* Main View Area: Calendar View vs Table View */}
       {apptViewMode === 'calendar' ? (
         <AdminAppointmentCalendar
-          appointments={appointments}
+          appointments={filteredAppointments}
           overrides={overrides}
           onSelectPatient={onSelectPatient}
           onBookDate={(dateIso) => onQuickBook(dateIso)}
@@ -192,7 +228,7 @@ export default function AdminAppointmentsTab({
       ) : (
         /* Appointments Table Card */
         <div className="admin-table-card">
-          {isLoading ? (
+          {isLoading && appointments.length === 0 ? (
             <div className="admin-loading-state">
               <div className="admin-empty-icon">
                 <IconRefresh size={24} />
@@ -200,7 +236,7 @@ export default function AdminAppointmentsTab({
               <h4>Loading Appointments...</h4>
               <p>Fetching the latest appointment records from the database.</p>
             </div>
-          ) : appointments.length === 0 ? (
+          ) : filteredAppointments.length === 0 ? (
             <div className="admin-empty-state">
               <div className="admin-empty-icon">
                 <IconCalendar size={28} />
@@ -236,11 +272,11 @@ export default function AdminAppointmentsTab({
                     <th>Health Concern</th>
                     <th>Status</th>
                     <th>Payment</th>
-                    <th>Actions</th>
+                    <th className="th-actions">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {appointments.map((appt) => (
+                  {filteredAppointments.map((appt) => (
                     <tr key={appt.id}>
                       <td>
                         <div className="cell-datetime">
@@ -321,45 +357,54 @@ export default function AdminAppointmentsTab({
                       </td>
                       <td>
                         <div className="cell-actions-wrap">
-                          {appt.consultationType !== 'offline' && appt.meetLink && (
+                          <button
+                            type="button"
+                            className="action-pill action-pill-notes"
+                            title="View Patient Details & Clinical Notes"
+                            onClick={() => onSelectPatient(appt)}
+                          >
+                            <IconFileText size={13} />
+                            <span>Notes</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="action-pill action-pill-reschedule"
+                            title="Reschedule appointment date & time"
+                            onClick={() => onReschedule(appt)}
+                          >
+                            <IconCalendar size={13} />
+                            <span>Reschedule</span>
+                          </button>
+
+                          {appt.consultationType !== 'offline' && appt.meetLink ? (
                             <a
                               href={appt.meetLink}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="action-btn-record"
-                              style={{
-                                color: 'var(--primary-blue)',
-                                borderColor: '#b6d7ff',
-                                textDecoration: 'none',
-                              }}
-                              title="Open Google Meet Link"
+                              className="action-pill action-pill-meet"
+                              title="Join Google Meet Video Consultation"
                             >
-                              Meet
+                              <IconVideo size={13} />
+                              <span>Meet</span>
                             </a>
+                          ) : (
+                            <span
+                              className="action-pill action-pill-clinic"
+                              title="In-Clinic Visit (Pune Clinic)"
+                            >
+                              <IconBuilding size={13} />
+                              <span>In-Clinic</span>
+                            </span>
                           )}
+
                           <button
                             type="button"
-                            className="action-btn-reschedule"
-                            title="Reschedule appointment date & time"
-                            onClick={() => onReschedule(appt)}
-                          >
-                            Reschedule
-                          </button>
-                          <button
-                            type="button"
-                            className="action-btn-record"
-                            title="View Patient Details & Notes"
-                            onClick={() => onSelectPatient(appt)}
-                          >
-                            Notes
-                          </button>
-                          <button
-                            type="button"
-                            className="action-btn-del"
-                            title="Delete Appointment"
+                            className="action-pill action-pill-del"
+                            title="Cancel / Delete Appointment"
                             onClick={() => onDeleteAppointment(appt.id, appt.fullName)}
                           >
-                            <IconCross />
+                            <IconTrash size={14} />
                           </button>
                         </div>
                       </td>

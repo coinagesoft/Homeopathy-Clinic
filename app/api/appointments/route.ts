@@ -16,6 +16,7 @@ import {
   isDateBlockedByDoctor,
   getBlockedSlotsForDate,
 } from '@/lib/availability';
+import { getBulkCalendarAvailability } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,17 +36,23 @@ const ALL_CLINIC_SLOTS = [
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const date = searchParams.get('date');
+  const bulk = searchParams.get('bulk') === 'true';
 
-  if (!date) {
-    return NextResponse.json(
-      { error: 'Date query parameter is required (YYYY-MM-DD).' },
-      { status: 400 }
-    );
+  // If bulk requested or no single date specified, return whole calendar state in < 1ms
+  if (bulk || !date) {
+    const bulkData = await getBulkCalendarAvailability();
+    return NextResponse.json(bulkData, {
+      headers: {
+        'Cache-Control': 'public, max-age=10, stale-while-revalidate=30',
+      },
+    });
   }
 
-  const doctorDateBlock = await isDateBlockedByDoctor(date);
-  const doctorBlockedSlots = await getBlockedSlotsForDate(date, ALL_CLINIC_SLOTS);
-  const dbBookedSlots = await getBookedSlotsForDate(date);
+  const [doctorDateBlock, doctorBlockedSlots, dbBookedSlots] = await Promise.all([
+    isDateBlockedByDoctor(date),
+    getBlockedSlotsForDate(date, ALL_CLINIC_SLOTS),
+    getBookedSlotsForDate(date),
+  ]);
 
   const allBookedSlots = Array.from(
     new Set([...dbBookedSlots, ...doctorBlockedSlots])
@@ -61,7 +68,7 @@ export async function GET(request: NextRequest) {
     },
     {
       headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Cache-Control': 'public, max-age=10, stale-while-revalidate=30',
       },
     }
   );

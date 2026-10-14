@@ -1,5 +1,13 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { getPool, ensureDatabaseSchema } from './db';
+import {
+  getFastDoctorOverrides,
+  updateCachedOverride,
+  removeCachedOverride,
+  getFastDoctorDateBlock,
+  getFastDoctorBlockedSlots,
+  getFastDoctorBlockedDates,
+} from './cache';
 
 export interface DoctorOverride {
   id: string;
@@ -43,12 +51,7 @@ function mapRowToOverride(row: DoctorOverrideRow): DoctorOverride {
 }
 
 export async function getAllDoctorOverrides(): Promise<DoctorOverride[]> {
-  await ensureDatabaseSchema();
-  const pool = getPool();
-  const [rows] = await pool.execute<DoctorOverrideRow[]>(
-    `SELECT * FROM doctor_availability ORDER BY override_date ASC, created_at DESC`
-  );
-  return rows.map(mapRowToOverride);
+  return getFastDoctorOverrides();
 }
 
 export async function saveDoctorOverride(override: DoctorOverride): Promise<DoctorOverride> {
@@ -78,6 +81,7 @@ export async function saveDoctorOverride(override: DoctorOverride): Promise<Doct
     ]
   );
 
+  updateCachedOverride(override);
   return override;
 }
 
@@ -85,56 +89,23 @@ export async function deleteDoctorOverride(id: string): Promise<DoctorOverride[]
   await ensureDatabaseSchema();
   const pool = getPool();
   await pool.execute(`DELETE FROM doctor_availability WHERE id = ?`, [id]);
+  removeCachedOverride(id);
   return getAllDoctorOverrides();
 }
 
 export async function isDateBlockedByDoctor(
   date: string
 ): Promise<{ blocked: boolean; reason?: string }> {
-  await ensureDatabaseSchema();
-  const pool = getPool();
-  const [rows] = await pool.execute<DoctorOverrideRow[]>(
-    `SELECT * FROM doctor_availability WHERE override_date = ? AND override_type = 'full_day' LIMIT 1`,
-    [date]
-  );
-  if (rows.length > 0) {
-    return { blocked: true, reason: rows[0].reason || 'Doctor on leave' };
-  }
-  return { blocked: false };
+  return getFastDoctorDateBlock(date);
 }
 
 export async function getBlockedSlotsForDate(
   date: string,
   allPossibleSlots?: string[]
 ): Promise<string[]> {
-  await ensureDatabaseSchema();
-  const pool = getPool();
-  const [rows] = await pool.execute<DoctorOverrideRow[]>(
-    `SELECT * FROM doctor_availability WHERE override_date = ?`,
-    [date]
-  );
-
-  const blocked = new Set<string>();
-
-  for (const row of rows) {
-    const o = mapRowToOverride(row);
-    if (o.type === 'full_day') {
-      if (allPossibleSlots) {
-        allPossibleSlots.forEach((s) => blocked.add(s));
-      }
-    } else if (o.type === 'specific_slots' && Array.isArray(o.blockedSlots)) {
-      o.blockedSlots.forEach((s) => blocked.add(s));
-    }
-  }
-
-  return Array.from(blocked);
+  return getFastDoctorBlockedSlots(date, allPossibleSlots);
 }
 
 export async function getDoctorBlockedDates(): Promise<{ date: string; reason: string }[]> {
-  await ensureDatabaseSchema();
-  const pool = getPool();
-  const [rows] = await pool.execute<DoctorOverrideRow[]>(
-    `SELECT * FROM doctor_availability WHERE override_type = 'full_day' ORDER BY override_date ASC`
-  );
-  return rows.map((r) => ({ date: r.override_date, reason: r.reason }));
+  return getFastDoctorBlockedDates();
 }

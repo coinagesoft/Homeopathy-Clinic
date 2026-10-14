@@ -8,6 +8,10 @@ const DB_CONFIG = {
   database: process.env.DB_NAME || 'u856729253_telehealth',
   waitForConnections: true,
   connectionLimit: 10,
+  maxIdle: 10,
+  idleTimeout: 60000,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
   queueLimit: 0,
   connectTimeout: 15000,
 };
@@ -17,6 +21,8 @@ declare global {
   var __mysqlPool: mysql.Pool | undefined;
   // eslint-disable-next-line no-var
   var __schemaInitialized: boolean | undefined;
+  // eslint-disable-next-line no-var
+  var __schemaPromise: Promise<void> | null | undefined;
 }
 
 export function getPool(): mysql.Pool {
@@ -31,7 +37,12 @@ export async function ensureDatabaseSchema(): Promise<void> {
     return;
   }
 
+  if (global.__schemaPromise) {
+    return global.__schemaPromise;
+  }
+
   const pool = getPool();
+  global.__schemaPromise = (async () => {
 
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS appointments (
@@ -126,5 +137,8 @@ export async function ensureDatabaseSchema(): Promise<void> {
   `);
 
   global.__schemaInitialized = true;
+  })();
+
+  return global.__schemaPromise;
 }
 

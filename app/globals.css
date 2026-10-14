@@ -22,7 +22,7 @@
   --tint: #F3F4FF;
   --white: #ffffff;
   --error: #E11D48;
-  --max: 1180px;
+  --max: 1380px;
   --serif: 'Montserrat', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --shadow-soft: 0 10px 35px rgba(31, 34, 120, 0.07);
@@ -1687,40 +1687,41 @@ p {
 }
 
 .custom-calendar-widget {
+  max-width: 540px;
   background: #ffffff;
   border: 1.5px solid #DCE0FA;
-  border-top: 4px solid var(--primary);
-  border-radius: 18px;
-  padding: 24px;
-  box-shadow: 0 10px 30px rgba(31, 34, 120, 0.06);
+  border-top: 3.5px solid var(--primary);
+  border-radius: 16px;
+  padding: 16px 18px 14px;
+  box-shadow: 0 6px 22px rgba(31, 34, 120, 0.05);
 }
 
 .cal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18px;
-  padding: 12px 16px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
   background: #F8F9FE;
   border: 1px solid #EEF0FF;
-  border-radius: 14px;
+  border-radius: 10px;
 }
 
 .cal-title-wrap {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 8px;
 }
 
 .cal-month-name {
   font-family: var(--serif);
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 800;
   color: var(--primary-dark);
 }
 
 .cal-year-num {
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--secondary);
 }
@@ -1728,17 +1729,17 @@ p {
 .cal-nav-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .cal-nav-btn {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1.5px solid #D8DCFA;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #ffffff;
   color: var(--primary-dark);
   cursor: pointer;
@@ -1760,19 +1761,19 @@ p {
 .cal-weekdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 6px;
+  margin-bottom: 6px;
   text-align: center;
   width: 100%;
 }
 
 .cal-weekday {
-  font-size: 13px;
+  font-size: 11.5px;
   font-weight: 700;
   color: var(--primary-dark);
-  padding: 8px 2px;
+  padding: 5px 2px;
   background: #F9FAFF;
-  border-radius: 8px;
+  border-radius: 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1787,33 +1788,33 @@ p {
 }
 
 .cal-sun-tag {
-  font-size: 9.5px;
+  font-size: 8px;
   text-transform: uppercase;
 }
 
 .cal-days-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
+  gap: 5px;
   width: 100%;
 }
 
 .cal-day-cell {
   position: relative;
-  min-height: 60px;
+  min-height: 44px;
   min-width: 0;
   overflow: hidden;
-  padding: 6px 4px;
-  border-radius: 12px;
-  border: 1.5px solid #E2E5F8;
+  padding: 4px 2px;
+  border-radius: 8px;
+  border: 1px solid #E2E5F8;
   background: #ffffff;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.18s ease;
 }
 
 .cal-blank-cell {
@@ -1823,7 +1824,7 @@ p {
 }
 
 .cal-day-num {
-  font-size: 15.5px;
+  font-size: 13.5px;
   font-weight: 700;
   color: var(--primary-dark);
   line-height: 1;
@@ -1832,15 +1833,15 @@ p {
 .cal-day-cell.available:hover {
   border-color: var(--primary);
   background: #EEF0FF;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(86, 90, 207, 0.12);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(86, 90, 207, 0.12);
 }
 
 .cal-day-cell.selected {
   background: linear-gradient(135deg, var(--secondary) 0%, #E05C18 100%) !important;
   border-color: var(--secondary) !important;
   color: #ffffff !important;
-  box-shadow: 0 6px 20px rgba(241, 119, 50, 0.42);
+  box-shadow: 0 4px 14px rgba(241, 119, 50, 0.38);
 }
 
 .cal-day-cell.selected .cal-day-num {
@@ -1870,32 +1871,32 @@ p {
 }
 
 .cal-today-badge {
-  font-size: 9.5px;
+  font-size: 8px;
   font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 4px;
+  padding: 1px 4px;
+  border-radius: 3px;
   background: #E2E8F0;
   color: #475569;
 }
 
 .cal-closed-pill {
-  font-size: 9.5px;
+  font-size: 8px;
   font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 4px;
+  padding: 1px 4px;
+  border-radius: 3px;
   background: #FEE2E2;
   color: #DC2626;
 }
 
 .cal-avail-dot {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: #10B981;
 }
 
 .cal-selected-check {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   color: #ffffff;
 }
@@ -1903,25 +1904,25 @@ p {
 .cal-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 8px 14px;
   align-items: center;
   justify-content: center;
-  margin-top: 16px;
-  padding-top: 14px;
+  margin-top: 12px;
+  padding-top: 10px;
   border-top: 1px solid var(--line);
-  font-size: 13px;
+  font-size: 11.5px;
   color: var(--muted);
 }
 
 .cal-legend-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .cal-legend-dot {
-  width: 10px;
-  height: 10px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   display: inline-block;
 }
@@ -1943,24 +1944,23 @@ p {
 }
 
 .cal-leave-pill {
-  font-size: 9.5px;
+  font-size: 8px;
   font-weight: 700;
   padding: 1px 4px;
-  border-radius: 4px;
+  border-radius: 3px;
   background: #F3E8FF;
   color: #7E22CE;
 }
 
 .cal-selected-banner,
 .selected-slot-banner {
-  margin-top: 16px;
-  padding: 13px 18px;
-  border-radius: 12px;
-  /* background: #EEF0FF; */
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
   border: 1.5px solid #C5C8FA;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   color: var(--primary-dark);
 }
 
@@ -2510,6 +2510,9 @@ p {
 
 /* Main Container */
 .admin-main-container {
+  max-width: var(--max) !important;
+  width: min(calc(100% - 48px), var(--max)) !important;
+  margin-inline: auto;
   padding-top: 28px;
 }
 
@@ -3130,12 +3133,120 @@ p {
   cursor: pointer;
 }
 
+/* Standardized Perfectly Aligned Actions Column */
+.th-actions {
+  min-width: 320px;
+}
+
 .cell-actions-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  white-space: nowrap;
 }
 
+.action-pill {
+  height: 30px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.16s ease;
+  box-sizing: border-box;
+  line-height: 1;
+}
+
+.action-pill svg {
+  flex-shrink: 0;
+}
+
+/* 1. Notes Pill (Indigo Theme) */
+.action-pill-notes {
+  width: 76px;
+  background: #EEF2FF;
+  border: 1px solid #D5DAFA;
+  color: var(--primary);
+}
+.action-pill-notes:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(86, 90, 207, 0.25);
+  transform: translateY(-1px);
+}
+
+/* 2. Reschedule Pill (Amber/Orange Theme) */
+.action-pill-reschedule {
+  width: 106px;
+  background: #FFF7ED;
+  border: 1px solid #FFEDD5;
+  color: #C2410C;
+}
+.action-pill-reschedule:hover {
+  background: #EA580C;
+  border-color: #EA580C;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.25);
+  transform: translateY(-1px);
+}
+
+/* 3. Meet Pill (Google Meet Blue) */
+.action-pill-meet {
+  width: 82px;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  color: #1D4ED8;
+}
+.action-pill-meet:hover {
+  background: #2563EB;
+  border-color: #2563EB;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  transform: translateY(-1px);
+}
+
+/* 3b. In-Clinic Placeholder Pill (Matches width of Meet pill for 100% straight vertical alignment) */
+.action-pill-clinic {
+  width: 82px;
+  background: #F8FAFC;
+  border: 1px dashed #CBD5E1;
+  color: #64748B;
+  cursor: default;
+  font-size: 11px;
+  font-weight: 500;
+  user-select: none;
+}
+
+/* 4. Delete Pill (Trash Icon) */
+.action-pill-del {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  background: #ffffff;
+  color: #94A3B8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+.action-pill-del:hover {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+  color: #DC2626;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+  transform: translateY(-1px);
+}
+
+/* Backward compatibility aliases */
 .action-btn-record {
   padding: 6px 12px;
   background: #EEF0FF;
@@ -3147,12 +3258,6 @@ p {
   cursor: pointer;
   transition: all 0.2s ease;
 }
-
-.action-btn-record:hover {
-  background: var(--primary);
-  color: #ffffff;
-}
-
 .action-btn-reschedule {
   padding: 6px 12px;
   background: #FFF7ED;
@@ -3163,17 +3268,7 @@ p {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
 }
-
-.action-btn-reschedule:hover {
-  background: #EA580C;
-  border-color: #EA580C;
-  color: #ffffff;
-}
-
 .action-btn-del {
   width: 28px;
   height: 28px;
@@ -3185,13 +3280,6 @@ p {
   border-radius: 8px;
   color: #94A3B8;
   cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.action-btn-del:hover {
-  background: #FEE2E2;
-  border-color: #EF4444;
-  color: #DC2626;
 }
 
 /* Patients Directory */
@@ -5036,7 +5124,7 @@ p {
 
   /* Admin Topbar on Mobile */
   .admin-topbar-inner {
-    width: min(calc(100% - 20px), var(--max));
+    width: min(calc(100% - 24px), var(--max));
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
@@ -5053,7 +5141,7 @@ p {
     padding: 8px 12px;
   }
   .admin-main-container {
-    width: min(calc(100% - 20px), var(--max));
+    width: min(calc(100% - 24px), var(--max));
     padding-top: 18px;
   }
   .admin-kpi-grid {
@@ -8385,7 +8473,7 @@ p {
   color: var(--primary);
 }
 
-.cal-weekdays-grid {
+.admin-calendar-view-card .cal-weekdays-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 8px;
@@ -8397,13 +8485,13 @@ p {
   text-transform: uppercase;
 }
 
-.cal-days-grid {
+.admin-calendar-view-card .cal-days-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 8px;
 }
 
-.cal-day-cell {
+.admin-calendar-view-card .cal-day-cell {
   min-height: 110px;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -8415,35 +8503,35 @@ p {
   transition: all 0.15s ease;
 }
 
-.cal-day-cell.other-month {
+.admin-calendar-view-card .cal-day-cell.other-month {
   background: #F8FAFC;
   opacity: 0.55;
 }
 
-.cal-day-cell.cell-today {
+.admin-calendar-view-card .cal-day-cell.cell-today {
   border-color: var(--secondary);
   box-shadow: 0 0 0 1.5px var(--secondary);
   background: #FFFAF6;
 }
 
-.cal-day-cell.cell-doctor-leave {
+.admin-calendar-view-card .cal-day-cell.cell-doctor-leave {
   background: #FFFBEB;
   border-color: #FDE68A;
 }
 
-.cal-cell-top {
+.admin-calendar-view-card .cal-cell-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.cal-day-num {
+.admin-calendar-view-card .cal-day-num {
   font-size: 13.5px;
   font-weight: 800;
   color: var(--primary-dark);
 }
 
-.today-num-badge {
+.admin-calendar-view-card .today-num-badge {
   background: var(--secondary);
   color: #ffffff;
   width: 24px;
@@ -8455,7 +8543,7 @@ p {
   font-size: 12px;
 }
 
-.btn-quick-add-slot {
+.admin-calendar-view-card .btn-quick-add-slot {
   width: 20px;
   height: 20px;
   border-radius: 6px;
@@ -8472,16 +8560,16 @@ p {
   transition: all 0.15s ease;
 }
 
-.cal-day-cell:hover .btn-quick-add-slot {
+.admin-calendar-view-card .cal-day-cell:hover .btn-quick-add-slot {
   opacity: 1;
 }
 
-.btn-quick-add-slot:hover {
+.admin-calendar-view-card .btn-quick-add-slot:hover {
   background: var(--primary);
   color: #ffffff;
 }
 
-.cal-leave-pill {
+.admin-calendar-view-card .cal-leave-pill {
   font-size: 10.5px;
   font-weight: 700;
   color: #B45309;
@@ -8493,14 +8581,14 @@ p {
   text-overflow: ellipsis;
 }
 
-.cal-cell-appts-list {
+.admin-calendar-view-card .cal-cell-appts-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
   flex: 1;
 }
 
-.cal-appt-chip {
+.admin-calendar-view-card .cal-appt-chip {
   display: flex;
   align-items: center;
   gap: 5px;
