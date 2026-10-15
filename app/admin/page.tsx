@@ -258,10 +258,12 @@ export default function AdminPage() {
     }
   };
 
-  // Fetch Appointments & Stats (Fast In-Memory Cache)
+  // Fetch Appointments & Stats (Fast In-Memory Cache with force-fresh)
   const loadAppointments = useCallback(() => {
     setIsLoadingAppointments(true);
-    adminFetch('/api/admin/appointments')
+    adminFetch(`/api/admin/appointments?_t=${Date.now()}&fresh=true`, {
+      cache: 'no-store',
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.appointments) setAppointments(data.appointments);
@@ -273,7 +275,9 @@ export default function AdminPage() {
 
   // Fetch Revenue Analytics
   const loadRevenue = useCallback(() => {
-    adminFetch('/api/admin/revenue')
+    adminFetch(`/api/admin/revenue?_t=${Date.now()}`, {
+      cache: 'no-store',
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.summary) setRevenueData(data);
@@ -283,7 +287,9 @@ export default function AdminPage() {
 
   // Fetch Doctor Overrides
   const loadOverrides = useCallback(() => {
-    return adminFetch('/api/availability')
+    return adminFetch(`/api/availability?_t=${Date.now()}`, {
+      cache: 'no-store',
+    })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data.overrides)) setOverrides(data.overrides);
@@ -300,11 +306,28 @@ export default function AdminPage() {
     }
   }, [isAuthenticated, loadAppointments, loadRevenue, loadOverrides]);
 
-  // Update Appointment Status
+  // Update Appointment Status (Instant Optimistic UI + Server Sync)
   const handleUpdateStatus = async (
     id: string,
-    status: 'confirmed' | 'completed' | 'cancelled' | 'no-show'
+    status: 'confirmed' | 'completed' | 'cancelled'
   ) => {
+    // 1. Instantly update UI optimistically in local state
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, status } : a))
+    );
+    if (selectedPatient) {
+      setSelectedPatient((prev) =>
+        prev
+          ? {
+              ...prev,
+              appointments: prev.appointments.map((a) =>
+                a.id === id ? { ...a, status } : a
+              ),
+            }
+          : null
+      );
+    }
+
     try {
       const res = await adminFetch('/api/admin/appointments', {
         method: 'PATCH',
@@ -312,31 +335,53 @@ export default function AdminPage() {
         body: JSON.stringify({ id, status }),
       });
       if (res.ok) {
-        loadAppointments();
-        loadRevenue();
-        if (selectedPatient) {
-          setSelectedPatient((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  appointments: prev.appointments.map((a) =>
-                    a.id === id ? { ...a, status } : a
-                  ),
-                }
-              : null
+        const data = await res.json();
+        if (data.appointment) {
+          setAppointments((prev) =>
+            prev.map((a) => (a.id === id ? { ...a, ...data.appointment } : a))
           );
         }
+        loadRevenue();
+      } else {
+        // Revert on failure
+        loadAppointments();
       }
     } catch (err) {
       console.error('Failed to update status:', err);
+      loadAppointments();
     }
   };
 
-  // Update Payment Status
+  // Update Payment Status (Instant Optimistic UI + Server Sync)
   const handleUpdatePayment = async (
     id: string,
     paymentStatus: 'paid' | 'pending' | 'refunded'
   ) => {
+    // 1. Instantly update UI optimistically in local state
+    setAppointments((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              paymentStatus,
+              paidAt: paymentStatus === 'paid' ? new Date().toISOString() : a.paidAt,
+            }
+          : a
+      )
+    );
+    if (selectedPatient) {
+      setSelectedPatient((prev) =>
+        prev
+          ? {
+              ...prev,
+              appointments: prev.appointments.map((a) =>
+                a.id === id ? { ...a, paymentStatus } : a
+              ),
+            }
+          : null
+      );
+    }
+
     try {
       const res = await adminFetch('/api/admin/appointments', {
         method: 'PATCH',
@@ -344,16 +389,41 @@ export default function AdminPage() {
         body: JSON.stringify({ id, paymentStatus }),
       });
       if (res.ok) {
-        loadAppointments();
+        const data = await res.json();
+        if (data.appointment) {
+          setAppointments((prev) =>
+            prev.map((a) => (a.id === id ? { ...a, ...data.appointment } : a))
+          );
+        }
         loadRevenue();
+      } else {
+        loadAppointments();
       }
     } catch (err) {
       console.error('Failed to update payment status:', err);
+      loadAppointments();
     }
   };
 
-  // Update Notes
+  // Update Notes (Instant Optimistic UI + Server Sync)
   const handleUpdateNotes = async (id: string, notes: string) => {
+    // 1. Instantly update UI optimistically in local state
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, notes } : a))
+    );
+    if (selectedPatient) {
+      setSelectedPatient((prev) =>
+        prev
+          ? {
+              ...prev,
+              appointments: prev.appointments.map((a) =>
+                a.id === id ? { ...a, notes } : a
+              ),
+            }
+          : null
+      );
+    }
+
     try {
       const res = await adminFetch('/api/admin/appointments', {
         method: 'PATCH',
@@ -361,22 +431,16 @@ export default function AdminPage() {
         body: JSON.stringify({ id, notes }),
       });
       if (res.ok) {
-        loadAppointments();
-        if (selectedPatient) {
-          setSelectedPatient((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  appointments: prev.appointments.map((a) =>
-                    a.id === id ? { ...a, notes } : a
-                  ),
-                }
-              : null
+        const data = await res.json();
+        if (data.appointment) {
+          setAppointments((prev) =>
+            prev.map((a) => (a.id === id ? { ...a, ...data.appointment } : a))
           );
         }
       }
     } catch (err) {
       console.error('Failed to update notes:', err);
+      loadAppointments();
     }
   };
 

@@ -165,8 +165,8 @@ async function syncPatientAndPaymentTables(appt: Appointment): Promise<void> {
   );
 }
 
-export async function getAllAppointments(): Promise<Appointment[]> {
-  return getFastAppointments();
+export async function getAllAppointments(forceFresh = false): Promise<Appointment[]> {
+  return getFastAppointments(forceFresh);
 }
 
 export async function getAppointmentById(id: string): Promise<Appointment | null> {

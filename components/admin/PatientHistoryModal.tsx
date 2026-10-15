@@ -27,7 +27,7 @@ interface PatientHistoryModalProps {
   onUpdateNotes: (appointmentId: string, notes: string) => Promise<void>;
   onUpdateStatus?: (
     appointmentId: string,
-    status: 'confirmed' | 'completed' | 'cancelled' | 'no-show'
+    status: 'confirmed' | 'completed' | 'cancelled'
   ) => Promise<void>;
   onReschedule?: (appt: Appointment) => void;
 }

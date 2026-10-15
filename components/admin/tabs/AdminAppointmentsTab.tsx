@@ -40,7 +40,7 @@ interface AdminAppointmentsTabProps {
   onReschedule: (appt: Appointment) => void;
   onUpdateStatus: (
     id: string,
-    status: 'confirmed' | 'completed' | 'cancelled' | 'no-show'
+    status: 'confirmed' | 'completed' | 'cancelled'
   ) => void;
   onUpdatePayment: (
     id: string,
@@ -248,7 +248,6 @@ export default function AdminAppointmentsTab({
               <option value="confirmed">Confirmed</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
-              <option value="no-show">No Show</option>
             </select>
           </div>
 
@@ -412,7 +411,7 @@ export default function AdminAppointmentsTab({
                           onChange={(e) =>
                             onUpdateStatus(
                               appt.id,
-                              e.target.value as 'confirmed' | 'completed' | 'cancelled' | 'no-show'
+                              e.target.value as 'confirmed' | 'completed' | 'cancelled'
                             )
                           }
                           className={`status-dropdown status-${appt.status || 'confirmed'}`}
@@ -420,7 +419,6 @@ export default function AdminAppointmentsTab({
                           <option value="confirmed">Confirmed</option>
                           <option value="completed">Completed</option>
                           <option value="cancelled">Cancelled</option>
-                          <option value="no-show">No Show</option>
                         </select>
                       </td>
                       <td>

@@ -19,6 +19,8 @@ import {
 } from '@/lib/google';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 export async function GET(request: NextRequest) {
   const auth = verifyAdminRequest(request);
@@ -35,8 +37,9 @@ export async function GET(request: NextRequest) {
     const statusFilter = searchParams.get('status') || 'all';
     const timeFilter = searchParams.get('time') || 'all';
     const modeFilter = searchParams.get('mode') || 'all';
+    const forceFresh = searchParams.get('fresh') === 'true' || searchParams.has('_t');
 
-    let appointments = await getAllAppointments();
+    let appointments = await getAllAppointments(forceFresh);
 
     // Sort by date descending (latest first)
     appointments.sort((a, b) => {
@@ -52,7 +55,6 @@ export async function GET(request: NextRequest) {
     const confirmedCount = appointments.filter((a) => a.status === 'confirmed').length;
     const completedCount = appointments.filter((a) => a.status === 'completed').length;
     const cancelledCount = appointments.filter((a) => a.status === 'cancelled').length;
-    const noShowCount = appointments.filter((a) => a.status === 'no-show').length;
 
     const totalRevenue = appointments
       .filter((a) => a.status !== 'cancelled' && a.paymentStatus === 'paid')
@@ -101,19 +103,23 @@ export async function GET(request: NextRequest) {
       appointments = appointments.filter((a) => a.consultationType !== 'offline');
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       appointments,
       stats: {
         totalCount,
         confirmedCount,
         completedCount,
         cancelledCount,
-        noShowCount,
         totalRevenue,
         pendingRevenue,
         uniquePatients,
       },
     });
+    response.headers.set(
+      'Cache-Control',
+      'no-store, no-cache, must-revalidate, proxy-revalidate'
+    );
+    return response;
   } catch (err: unknown) {
     console.error('Error fetching admin appointments:', err);
     return NextResponse.json(
