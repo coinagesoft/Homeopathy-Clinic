@@ -81,8 +81,89 @@ export default function AdminAppointmentsTab({
     modeFilter !== 'all' ||
     sortBy !== 'latest';
 
+  // Group appointments by unique email (or phone/id if no email)
+  // Ensures same email does not repeat on this screen, and always presents the first booking name & mobile
+  const deduplicatedAppointments = React.useMemo(() => {
+    const groups = new Map<string, Appointment[]>();
+
+    appointments.forEach((appt) => {
+      const emailKey = (appt.email || '').trim().toLowerCase();
+      const phoneKey = (appt.phone || '').replace(/\D/g, '').slice(-10);
+      const key = emailKey || phoneKey || appt.id;
+      const list = groups.get(key) || [];
+      list.push(appt);
+      groups.set(key, list);
+    });
+
+    const result: (Appointment & {
+      totalBookingsCount: number;
+      isRepeatPatient: boolean;
+      allBookings: Appointment[];
+      firstBooking: Appointment;
+    })[] = [];
+
+    groups.forEach((groupAppts) => {
+      // 1. Find the earliest / first booking chronologically (by createdAt or date + time)
+      const sortedChronological = [...groupAppts].sort((a, b) => {
+        if (a.createdAt && b.createdAt) {
+          const cmp = a.createdAt.localeCompare(b.createdAt);
+          if (cmp !== 0) return cmp;
+        }
+        const dtA = `${a.date || ''}T${a.time || ''}`;
+        const dtB = `${b.date || ''}T${b.time || ''}`;
+        return dtA.localeCompare(dtB);
+      });
+      const firstBooking = sortedChronological[0];
+
+      // 2. Representative appointment for calendar & schedule display:
+      // Sort descending (latest date on top) to pick the most relevant / active appointment
+      const sortedDescending = [...groupAppts].sort((a, b) => {
+        const dtA = `${a.date || ''}T${a.time || ''}`;
+        const dtB = `${b.date || ''}T${b.time || ''}`;
+        return dtB.localeCompare(dtA);
+      });
+      const repAppt = sortedDescending[0];
+
+      result.push({
+        ...repAppt,
+        // Enforce the first booking name, mobile, and age as requested
+        fullName: firstBooking.fullName || repAppt.fullName,
+        phone: firstBooking.phone || repAppt.phone,
+        age: firstBooking.age || repAppt.age,
+        totalBookingsCount: groupAppts.length,
+        isRepeatPatient: groupAppts.length > 1,
+        allBookings: groupAppts,
+        firstBooking,
+      });
+    });
+
+    return result;
+  }, [appointments]);
+
+  // Mapped appointments ensuring that even in Calendar view, the first booking name is displayed
+  const calendarAppointments = React.useMemo(() => {
+    const emailToFirstBooking = new Map<string, Appointment>();
+    deduplicatedAppointments.forEach((d) => {
+      const emailKey = (d.email || '').trim().toLowerCase();
+      if (emailKey) emailToFirstBooking.set(emailKey, d.firstBooking);
+    });
+
+    return appointments.map((appt) => {
+      const emailKey = (appt.email || '').trim().toLowerCase();
+      const fb = emailKey ? emailToFirstBooking.get(emailKey) : null;
+      if (fb) {
+        return {
+          ...appt,
+          fullName: fb.fullName || appt.fullName,
+          phone: fb.phone || appt.phone,
+        };
+      }
+      return appt;
+    });
+  }, [appointments, deduplicatedAppointments]);
+
   const filteredAppointments = React.useMemo(() => {
-    let result = [...appointments];
+    let result = [...deduplicatedAppointments];
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       result = result.filter(
@@ -91,7 +172,13 @@ export default function AdminAppointmentsTab({
           a.phone.includes(q) ||
           a.email.toLowerCase().includes(q) ||
           a.reason.toLowerCase().includes(q) ||
-          (a.paymentId && a.paymentId.toLowerCase().includes(q))
+          (a.paymentId && a.paymentId.toLowerCase().includes(q)) ||
+          a.allBookings.some(
+            (b) =>
+              (b.fullName && b.fullName.toLowerCase().includes(q)) ||
+              (b.phone && b.phone.includes(q)) ||
+              (b.reason && b.reason.toLowerCase().includes(q))
+          )
       );
     }
     if (statusFilter !== 'all') {
@@ -123,7 +210,7 @@ export default function AdminAppointmentsTab({
     });
 
     return result;
-  }, [appointments, searchQuery, statusFilter, timeFilter, modeFilter, sortBy]);
+  }, [deduplicatedAppointments, searchQuery, statusFilter, timeFilter, modeFilter, sortBy]);
 
   const handleResetFilters = () => {
     setSearchQuery('');
@@ -290,8 +377,14 @@ export default function AdminAppointmentsTab({
         {/* Results row at bottom of card */}
         <div className="directory-results-row">
           <span>
-            Showing <strong>{filteredAppointments.length}</strong> of{' '}
-            <strong>{appointments.length}</strong> scheduled appointments
+            Showing <strong>{filteredAppointments.length}</strong> scheduled patient booking
+            {filteredAppointments.length === 1 ? '' : 's'}
+            {appointments.length > filteredAppointments.length && (
+              <span className="results-total-sub">
+                {' '}
+                ({appointments.length} total consultation{appointments.length === 1 ? '' : 's'} recorded)
+              </span>
+            )}
           </span>
           {hasActiveFilters && (
             <button
@@ -309,7 +402,7 @@ export default function AdminAppointmentsTab({
       {/* Main View Area: Calendar View vs Table View */}
       {apptViewMode === 'calendar' ? (
         <AdminAppointmentCalendar
-          appointments={filteredAppointments}
+          appointments={calendarAppointments}
           overrides={overrides}
           onSelectPatient={onSelectPatient}
           onBookDate={(dateIso) => onQuickBook(dateIso)}
@@ -384,13 +477,28 @@ export default function AdminAppointmentsTab({
                       </td>
                       <td>
                         <div className="cell-patient">
-                          <button
-                            type="button"
-                            className="patient-name-link"
-                            onClick={() => onSelectPatient(appt)}
-                          >
-                            {appt.fullName}
-                          </button>
+                          <div className="patient-name-row">
+                            <button
+                              type="button"
+                              className="patient-name-link"
+                              onClick={() => onSelectPatient(appt)}
+                            >
+                              {appt.fullName}
+                            </button>
+                            {appt.isRepeatPatient && (
+                              <button
+                                type="button"
+                                className="patient-repeat-count-pill"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSelectPatient(appt);
+                                }}
+                                title="Click to view all consultations for this patient in the patient details dialog"
+                              >
+                                {appt.totalBookingsCount} Bookings
+                              </button>
+                            )}
+                          </div>
                           <span className="patient-meta">
                             Age {appt.age || '—'} &bull; {appt.phone}
                           </span>

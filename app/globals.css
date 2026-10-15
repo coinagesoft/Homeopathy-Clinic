@@ -3230,6 +3230,13 @@ p {
   flex-direction: column;
 }
 
+.patient-name-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
 .patient-name-link {
   background: none;
   border: none;
@@ -3245,6 +3252,33 @@ p {
 
 .patient-name-link:hover {
   color: var(--secondary);
+}
+
+.patient-repeat-count-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  background: #EEF0FF;
+  border: 1px solid #D5DAFA;
+  padding: 1px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.4;
+}
+
+.patient-repeat-count-pill:hover {
+  background: var(--primary);
+  color: #FFFFFF;
+  border-color: var(--primary);
+}
+
+.results-total-sub {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .patient-meta {
@@ -4434,6 +4468,90 @@ p {
   border: 1px solid #E2E8F0;
 }
 
+/* Consultation List Card Booked Attendee Row (For shared email accounts) */
+.appt-item-booked-for {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 6px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 1px 0;
+  transition: all 0.15s ease;
+}
+
+.patient-appt-item.is-selected .appt-item-booked-for {
+  background: #FFFFFF;
+  border-color: #D5DAFA;
+  box-shadow: 0 1px 4px rgba(86, 90, 207, 0.08);
+}
+
+.booked-for-main {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.booked-for-icon {
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.booked-for-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.booked-for-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+.booked-for-age {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.booked-for-phone-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: #475569;
+  font-weight: 600;
+  padding-left: 2px;
+}
+
+.booked-for-phone-wrap svg {
+  color: #64748B;
+  flex-shrink: 0;
+}
+
+.booked-for-diff-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FDE68A;
+  margin-left: auto;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
 .appt-item-concern {
   display: flex;
   align-items: baseline;
@@ -4586,6 +4704,93 @@ p {
   font-size: 12px;
   font-weight: 700;
   padding: 5px 10px;
+}
+
+/* Active Consultation Right-Side Attendee Header Card */
+.selected-appt-attendee-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 9px 14px;
+  flex-wrap: wrap;
+}
+
+.attendee-card-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.attendee-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #EEF0FF;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.attendee-card-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.attendee-card-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--primary-dark);
+}
+
+.attendee-card-age {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: #F8FAFC;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid #E2E8F0;
+}
+
+.attendee-card-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: none;
+  background: #EEF0FF;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid #D5DAFA;
+  transition: all 0.15s ease;
+}
+
+.attendee-card-phone:hover {
+  background: #E0E4FC;
+  text-decoration: underline;
+}
+
+.attendee-diff-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FDE68A;
+  white-space: nowrap;
 }
 
 .selected-appt-details-row {

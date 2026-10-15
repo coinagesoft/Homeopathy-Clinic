@@ -13,6 +13,7 @@ import {
   IconRefresh,
   IconPlus,
   IconClock,
+  IconUsers,
 } from './AdminIcons';
 
 interface PatientHistoryModalProps {
@@ -148,6 +149,39 @@ export default function PatientHistoryModal({
   // Visit number: total - index (e.g., latest of 3 visits is Visit #3)
   const selectedVisitNumber =
     selectedApptIndex >= 0 ? sortedAppointments.length - selectedApptIndex : 1;
+
+  // Normalization helpers for patient identity comparisons
+  const normalizeName = (s?: string) => (s || '').trim().toLowerCase();
+  const normalizePhone = (s?: string) => (s || '').replace(/\D/g, '').slice(-10);
+
+  // Detect whether this patient record contains multiple appointments with different booked names or mobile numbers
+  const hasDiverseIdentities = useMemo(() => {
+    if (!patient?.appointments || patient.appointments.length <= 1) return false;
+
+    const names = new Set(
+      patient.appointments
+        .map((a) => normalizeName(a.fullName))
+        .filter(Boolean)
+    );
+    const phones = new Set(
+      patient.appointments
+        .map((a) => normalizePhone(a.phone))
+        .filter(Boolean)
+    );
+
+    return names.size > 1 || phones.size > 1;
+  }, [patient?.appointments]);
+
+  const primaryName = normalizeName(patient?.fullName);
+  const primaryPhone = normalizePhone(patient?.phone);
+
+  const selectedName = normalizeName(selectedAppt?.fullName);
+  const selectedPhone = normalizePhone(selectedAppt?.phone);
+  const isSelectedDifferent =
+    Boolean(selectedName && primaryName && selectedName !== primaryName) ||
+    Boolean(selectedPhone && primaryPhone && selectedPhone !== primaryPhone);
+
+  const showSelectedBookingIdentity = hasDiverseIdentities || isSelectedDifferent;
 
   // Saved user-entered notes (cleaned of dummy system text)
   const savedUserNotes = selectedAppt ? cleanUserNotes(selectedAppt.notes) : '';
@@ -341,7 +375,9 @@ export default function PatientHistoryModal({
                     </span>
                   </div>
                   <p className="list-header-subtitle">
-                    Latest visit on top. Click an appointment to view and edit clinical notes.
+                    {hasDiverseIdentities
+                      ? 'Multiple attendees booked under this email. Each card displays the attendee name & mobile.'
+                      : 'Latest visit on top. Click an appointment to view and edit clinical notes.'}
                   </p>
                 </div>
 
@@ -359,6 +395,14 @@ export default function PatientHistoryModal({
                     const hasNotes = Boolean(apptNote && apptNote.trim().length > 0);
                     const hasUnsavedDraft =
                       noteDrafts[appt.id] !== undefined && noteDrafts[appt.id] !== cleanSavedNotes;
+
+                    // Attendee identity check for this booking
+                    const apptName = normalizeName(appt.fullName);
+                    const apptPhone = normalizePhone(appt.phone);
+                    const isDifferentFromPrimary =
+                      Boolean(apptName && primaryName && apptName !== primaryName) ||
+                      Boolean(apptPhone && primaryPhone && apptPhone !== primaryPhone);
+                    const showBookingIdentity = hasDiverseIdentities || isDifferentFromPrimary;
 
                     return (
                       <div
@@ -425,6 +469,38 @@ export default function PatientHistoryModal({
                             </span>
                           )}
                         </div>
+
+                        {/* Booked Attendee Name & Mobile (when multiple appointments have different names or phones under this email) */}
+                        {showBookingIdentity && (
+                          <div className="appt-item-booked-for">
+                            <div className="booked-for-main">
+                              <span className="booked-for-icon" title="Booked Patient Name">
+                                <IconUsers size={12} />
+                              </span>
+                              <span className="booked-for-label">Patient:</span>
+                              <strong className="booked-for-name" title={appt.fullName || '—'}>
+                                {appt.fullName || '—'}
+                              </strong>
+                              {appt.age ? (
+                                <span className="booked-for-age">({appt.age}y)</span>
+                              ) : null}
+                              {isDifferentFromPrimary && (
+                                <span
+                                  className="booked-for-diff-badge"
+                                  title="Attendee name or mobile differs from primary account"
+                                >
+                                  Alt Attendee
+                                </span>
+                              )}
+                            </div>
+                            {appt.phone && (
+                              <div className="booked-for-phone-wrap" title="Booking Mobile Number">
+                                <IconPhone size={11} />
+                                <span className="booked-for-phone">{appt.phone}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Health Concern / Reason */}
                         <div className="appt-item-concern">
@@ -512,6 +588,39 @@ export default function PatientHistoryModal({
                           </span>
                         </div>
                       </div>
+
+                      {/* Attendee details banner when multiple individuals share this email */}
+                      {showSelectedBookingIdentity && (
+                        <div className="selected-appt-attendee-card">
+                          <div className="attendee-card-left">
+                            <span className="attendee-card-icon" title="Consultation Patient">
+                              <IconUsers size={14} />
+                            </span>
+                            <span className="attendee-card-label">Consultation For:</span>
+                            <strong className="attendee-card-name">
+                              {selectedAppt.fullName || '—'}
+                            </strong>
+                            {selectedAppt.age ? (
+                              <span className="attendee-card-age">Age {selectedAppt.age}</span>
+                            ) : null}
+                            {selectedAppt.phone && (
+                              <a
+                                href={`tel:${selectedAppt.phone}`}
+                                className="attendee-card-phone"
+                                title="Call attendee"
+                              >
+                                <IconPhone size={11} />
+                                <span>{selectedAppt.phone}</span>
+                              </a>
+                            )}
+                          </div>
+                          {isSelectedDifferent && (
+                            <span className="attendee-diff-badge">
+                              Family / Alternate Attendee
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       {/* Concern & Patient Query */}
                       <div className="selected-appt-details-row">
