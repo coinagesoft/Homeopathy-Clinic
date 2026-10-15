@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { DoctorOverride } from '@/lib/availability';
 import { Appointment } from '@/lib/storage';
 import ThemedDatePicker from './ThemedDatePicker';
+import { toast } from '@/components/ui/Toast';
 
 const ALL_SLOTS = [
   { value: '09:00', label: '9:00 AM' },
@@ -89,6 +90,7 @@ export default function DoctorAvailabilityManager({
 
     if (!date) {
       setFeedback({ type: 'error', message: 'Please select a date for the availability override.' });
+      toast.warning('Please select a date for the availability override.', 'Missing Date');
       return;
     }
 
@@ -97,6 +99,7 @@ export default function DoctorAvailabilityManager({
         type: 'error',
         message: 'Please choose at least one time slot to block.',
       });
+      toast.warning('Please choose at least one time slot to block.', 'No Slots Selected');
       return;
     }
 
@@ -133,15 +136,21 @@ export default function DoctorAvailabilityManager({
         type: 'success',
         message: `Availability override successfully applied for ${date}. This date/slots are now blocked in the booking calendar.`,
       });
+      toast.success(
+        `Doctor blackout successfully applied for ${date}. Slots are now blocked.`,
+        'Blackout Applied'
+      );
 
       setReason('');
       setSelectedSlots([]);
       await onRefresh();
     } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Error setting availability.';
       setFeedback({
         type: 'error',
-        message: err instanceof Error ? err.message : 'Error setting availability.',
+        message: errMsg,
       });
+      toast.error(errMsg, 'Failed to Apply Blackout');
     } finally {
       setIsSubmitting(false);
     }
@@ -178,14 +187,20 @@ export default function DoctorAvailabilityManager({
         type: 'success',
         message: `Availability restored for ${overrideDate}. Slots on this date are now open for booking.`,
       });
+      toast.success(
+        `Availability restored for ${overrideDate}. Slots are now open for booking.`,
+        'Availability Restored'
+      );
 
       await onRefresh();
     } catch (err: unknown) {
       console.error('Failed to delete availability override:', err);
+      const errMsg = err instanceof Error ? err.message : 'Failed to restore availability.';
       setFeedback({
         type: 'error',
-        message: err instanceof Error ? err.message : 'Failed to restore availability.',
+        message: errMsg,
       });
+      toast.error(errMsg, 'Failed to Restore Availability');
     } finally {
       setRestoringId(null);
     }
@@ -207,12 +222,14 @@ export default function DoctorAvailabilityManager({
         type: 'success',
         message: 'Active doctor overrides list refreshed.',
       });
+      toast.info('Active doctor overrides list refreshed.', 'Overrides Refreshed');
     } catch (err) {
       console.error('Error refreshing overrides:', err);
       setFeedback({
         type: 'error',
         message: 'Unable to refresh overrides. Please try again.',
       });
+      toast.error('Unable to refresh overrides. Please try again.', 'Refresh Failed');
     } finally {
       setIsRefreshing(false);
     }

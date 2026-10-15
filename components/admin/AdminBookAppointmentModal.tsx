@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import ThemedDatePicker from './ThemedDatePicker';
 import { Appointment } from '@/lib/storage';
 import { DoctorOverride } from '@/lib/availability';
+import { toast } from '@/components/ui/Toast';
 
 const ALL_CLINIC_SLOTS = [
   { value: '09:00', label: '9:00 AM' },
@@ -235,14 +236,18 @@ export default function AdminBookAppointmentModal({
 
     // 1. Patient Name Validation
     if (!fullName.trim() || fullName.trim().length < 2) {
-      setErrorMsg('Please enter a valid patient full name (minimum 2 characters).');
+      const msg = 'Please enter a valid patient full name (minimum 2 characters).';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Name Required');
       return;
     }
 
     // 2. Mobile Number Validation (Indian / 10-digit mobile)
     const rawPhone = phone.trim();
     if (!/^[6-9]\d{9}$/.test(rawPhone)) {
-      setErrorMsg('Please provide a valid 10-digit mobile number starting with 6, 7, 8, or 9.');
+      const msg = 'Please provide a valid 10-digit mobile number starting with 6, 7, 8, or 9.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Invalid Mobile');
       return;
     }
     const cleanPhone = rawPhone;
@@ -251,11 +256,15 @@ export default function AdminBookAppointmentModal({
     const trimmedEmail = email.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     if (consultationType === 'online' && !trimmedEmail) {
-      setErrorMsg('Patient email address is required for Online Video (Google Meet) consultations.');
+      const msg = 'Patient email address is required for Online Video (Google Meet) consultations.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Email Required');
       return;
     }
     if (trimmedEmail && !emailRegex.test(trimmedEmail)) {
-      setErrorMsg('Please enter a valid email address (e.g. name@example.com).');
+      const msg = 'Please enter a valid email address (e.g. name@example.com).';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Invalid Email');
       return;
     }
 
@@ -264,7 +273,9 @@ export default function AdminBookAppointmentModal({
     if (age.trim()) {
       const parsedAge = Number(age.trim());
       if (!Number.isInteger(parsedAge) || parsedAge < 1 || parsedAge > 120) {
-        setErrorMsg('Please enter a valid age between 1 and 120 years.');
+        const msg = 'Please enter a valid age between 1 and 120 years.';
+        setErrorMsg(msg);
+        toast.warning(msg, 'Invalid Age');
         return;
       }
       validatedAge = parsedAge;
@@ -272,16 +283,22 @@ export default function AdminBookAppointmentModal({
 
     // 5. Date & Time Validation
     if (!date || !time) {
-      setErrorMsg('Please select both an appointment date and time slot.');
+      const msg = 'Please select both an appointment date and time slot.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Slot Required');
       return;
     }
     if (date <= todayIso) {
-      setErrorMsg('Appointments can only be scheduled for future dates (from tomorrow onwards).');
+      const msg = 'Appointments can only be scheduled for future dates (from tomorrow onwards).';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Invalid Date');
       return;
     }
     const unavailableCheck = isClinicDateUnavailable(date, overrides, appointments);
     if (unavailableCheck.unavailable) {
-      setErrorMsg(unavailableCheck.reason || 'The selected date is unavailable for booking.');
+      const msg = unavailableCheck.reason || 'The selected date is unavailable for booking.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Date Unavailable');
       return;
     }
 
@@ -311,6 +328,11 @@ export default function AdminBookAppointmentModal({
         throw new Error(data.error || 'Failed to schedule appointment.');
       }
 
+      toast.success(
+        `Appointment scheduled successfully for ${fullName.trim()} on ${date} at ${time}.`,
+        'Appointment Created'
+      );
+
       setSuccessResult({
         id: data.appointment?.id || '',
         calendarScheduled: data.calendarScheduled,
@@ -320,7 +342,9 @@ export default function AdminBookAppointmentModal({
 
       onSuccess();
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Failed to schedule appointment.');
+      const errText = err instanceof Error ? err.message : 'Failed to schedule appointment.';
+      setErrorMsg(errText);
+      toast.error(errText, 'Booking Failed');
     } finally {
       setIsSubmitting(false);
     }

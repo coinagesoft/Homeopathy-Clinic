@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Appointment } from '@/lib/storage';
+import { toast } from '@/components/ui/Toast';
 import {
   IconPhone,
   IconMail,
@@ -232,9 +233,10 @@ export default function PatientHistoryModal({
     try {
       await navigator.clipboard.writeText(currentNoteText);
       setCopiedNote(true);
+      toast.info('Clinical notes copied to clipboard.', 'Copied to Clipboard');
       setTimeout(() => setCopiedNote(false), 2000);
     } catch {
-      // ignore clipboard error
+      toast.error('Unable to copy notes to clipboard.', 'Copy Failed');
     }
   };
 

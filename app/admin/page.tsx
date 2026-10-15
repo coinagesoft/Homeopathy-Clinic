@@ -22,6 +22,7 @@ import DoctorAvailabilityManager from '@/components/admin/DoctorAvailabilityMana
 import PatientHistoryModal from '@/components/admin/PatientHistoryModal';
 import AdminBookAppointmentModal from '@/components/admin/AdminBookAppointmentModal';
 import AdminRescheduleModal from '@/components/admin/AdminRescheduleModal';
+import { toast } from '@/components/ui/Toast';
 
 // Customer identity resolution helpers
 function getCustomerKey(email?: string, phone?: string): string {
@@ -215,7 +216,9 @@ export default function AdminPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setLoginError(data.error || 'Invalid email or password.');
+        const err = data.error || 'Invalid email or password.';
+        setLoginError(err);
+        toast.error(err, 'Login Failed');
         return;
       }
 
@@ -232,9 +235,12 @@ export default function AdminPage() {
       setIsAuthenticated(true);
       setPassword('');
       setLoginError('');
+      toast.success('Logged in successfully. Welcome back!', 'Welcome');
     } catch (err) {
       console.error('Admin login error:', err);
-      setLoginError('Network error while connecting to authentication server.');
+      const netErr = 'Network error while connecting to authentication server.';
+      setLoginError(netErr);
+      toast.error(netErr, 'Login Error');
     } finally {
       setIsSubmittingLogin(false);
     }
@@ -255,6 +261,7 @@ export default function AdminPage() {
       localStorage.removeItem('clinic_doctor_logged_in');
       setIsAuthenticated(false);
       setAdminUser(null);
+      toast.info('You have been logged out of the admin portal.', 'Logged Out');
     }
   };
 
@@ -342,13 +349,17 @@ export default function AdminPage() {
           );
         }
         loadRevenue();
+        const readableStatus = status.charAt(0).toUpperCase() + status.slice(1);
+        toast.success(`Appointment status updated to ${readableStatus}.`, 'Status Updated');
       } else {
         // Revert on failure
         loadAppointments();
+        toast.error('Failed to update appointment status. Reverting changes.', 'Status Update Failed');
       }
     } catch (err) {
       console.error('Failed to update status:', err);
       loadAppointments();
+      toast.error('Network error while updating appointment status.', 'Status Update Failed');
     }
   };
 
@@ -396,12 +407,20 @@ export default function AdminPage() {
           );
         }
         loadRevenue();
+        toast.success(
+          paymentStatus === 'paid'
+            ? 'Payment successfully marked as Paid (₹800).'
+            : `Payment status updated to ${paymentStatus}.`,
+          'Payment Updated'
+        );
       } else {
         loadAppointments();
+        toast.error('Failed to update payment status. Reverting changes.', 'Payment Update Failed');
       }
     } catch (err) {
       console.error('Failed to update payment status:', err);
       loadAppointments();
+      toast.error('Network error while updating payment status.', 'Payment Update Failed');
     }
   };
 
@@ -437,10 +456,14 @@ export default function AdminPage() {
             prev.map((a) => (a.id === id ? { ...a, ...data.appointment } : a))
           );
         }
+        toast.success('Clinical prescription notes saved successfully.', 'Notes Saved');
+      } else {
+        toast.error('Failed to save clinical notes.', 'Save Failed');
       }
     } catch (err) {
       console.error('Failed to update notes:', err);
       loadAppointments();
+      toast.error('Network error while saving clinical notes.', 'Save Failed');
     }
   };
 
@@ -456,9 +479,13 @@ export default function AdminPage() {
       if (res.ok) {
         loadAppointments();
         loadRevenue();
+        toast.success(`Appointment for ${patientName} has been cancelled and removed.`, 'Appointment Cancelled');
+      } else {
+        toast.error('Failed to delete appointment. Please try again.', 'Delete Failed');
       }
     } catch (err) {
       console.error('Failed to delete appointment:', err);
+      toast.error('Network error while deleting appointment.', 'Delete Failed');
     }
   };
 

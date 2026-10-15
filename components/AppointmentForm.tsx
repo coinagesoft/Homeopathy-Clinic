@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import CalendarPicker from './CalendarPicker';
+import { toast } from '@/components/ui/Toast';
 
 const SLOTS = [
   { value: '09:00', label: '9:00 AM' },
@@ -484,6 +485,8 @@ export default function AppointmentForm() {
     setErrors(newErrors);
 
     if (firstInvalidKey) {
+      const errorMsg = newErrors[firstInvalidKey] || 'Please check and complete all required fields.';
+      toast.warning(errorMsg, 'Required Information');
       if (firstInvalidKey === 'time') {
         slotSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (firstInvalidKey === 'date') {
@@ -503,20 +506,24 @@ export default function AppointmentForm() {
       if (data.isDoctorBlocked) {
         setIsDoctorDateBlocked(true);
         setDoctorBlockReason(data.doctorBlockReason || '');
+        const blockedMsg = `Doctor is unavailable on ${formData.date}. Please choose another date.`;
         setErrors((prev) => ({
           ...prev,
-          date: `Doctor is unavailable on ${formData.date}. Please choose another date.`,
+          date: blockedMsg,
         }));
+        toast.error(blockedMsg, 'Doctor Unavailable');
         calendarSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setIsCheckingSlot(false);
         return;
       }
       if (Array.isArray(data.bookedSlots) && data.bookedSlots.includes(formData.time)) {
         setServerBookedSlots(data.bookedSlots);
+        const slotMsg = 'This time slot was just booked or blocked. Please select another available slot.';
         setErrors((prev) => ({
           ...prev,
-          time: 'This time slot was just booked or blocked. Please select another available slot.',
+          time: slotMsg,
         }));
+        toast.error(slotMsg, 'Slot Unavailable');
         slotSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setIsCheckingSlot(false);
         return;
@@ -552,23 +559,31 @@ export default function AppointmentForm() {
 
       if (!response.ok) {
         if (response.status === 409) {
+          const conflictMsg = 'This time slot is already booked for this date. Please choose another slot.';
           setErrors((prev) => ({
             ...prev,
-            time: 'This time slot is already booked for this date. Please choose another slot.',
+            time: conflictMsg,
           }));
+          toast.error(conflictMsg, 'Slot Already Booked');
           fetchBookedSlots(formData.date);
           slotSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
-          setPaymentError(
+          const errDetail =
             result.error ||
-              `Payment (${razorpayPaymentId}) succeeded, but booking encountered an error. Please contact the clinic.`
-          );
+            `Payment (${razorpayPaymentId}) succeeded, but booking encountered an error. Please contact the clinic.`;
+          setPaymentError(errDetail);
+          toast.error(errDetail, 'Booking Error');
         }
         setIsSubmitting(false);
         return;
       }
 
       // Booking confirmed!
+      toast.success(
+        `Appointment confirmed for ${result.appointment.fullName} on ${result.appointment.date} at ${result.appointment.time}!`,
+        'Booking Confirmed'
+      );
+
       setConfirmedBooking({
         id: result.appointment.id,
         fullName: result.appointment.fullName,
@@ -606,9 +621,9 @@ export default function AppointmentForm() {
       }, 80);
     } catch (err) {
       console.error('Error submitting appointment after payment:', err);
-      setPaymentError(
-        `Network error while finalizing booking (Payment ID: ${razorpayPaymentId}). Please try again.`
-      );
+      const errMsg = `Network error while finalizing booking (Payment ID: ${razorpayPaymentId}). Please try again.`;
+      setPaymentError(errMsg);
+      toast.error(errMsg, 'Booking Finalization Error');
     } finally {
       setIsSubmitting(false);
       setIsProcessingPayment(false);
@@ -622,9 +637,10 @@ export default function AppointmentForm() {
 
     const scriptLoaded = await loadRazorpayCheckoutScript();
     if (!scriptLoaded || !window.Razorpay) {
-      setPaymentError(
-        'Unable to load Razorpay payment gateway. Please check your internet connection and try again.'
-      );
+      const loadError =
+        'Unable to load Razorpay payment gateway. Please check your internet connection and try again.';
+      setPaymentError(loadError);
+      toast.error(loadError, 'Payment Gateway Error');
       setIsProcessingPayment(false);
       return;
     }
@@ -657,13 +673,16 @@ export default function AppointmentForm() {
       modal: {
         ondismiss: () => {
           setIsProcessingPayment(false);
+          toast.warning('Payment was cancelled or closed. Appointment booking was not completed.', 'Booking Cancelled');
         },
       },
       handler: (response: RazorpaySuccessResponse) => {
         if (response && response.razorpay_payment_id) {
           createAppointmentAfterPayment(response.razorpay_payment_id);
         } else {
-          setPaymentError('Payment verification did not return a payment ID. Please try again.');
+          const failMsg = 'Payment verification did not return a payment ID. Please try again.';
+          setPaymentError(failMsg);
+          toast.error(failMsg, 'Payment Failed');
           setIsProcessingPayment(false);
         }
       },
@@ -676,12 +695,15 @@ export default function AppointmentForm() {
           failure?.error?.description ||
           'Payment failed or was declined. Please try again to complete your booking.';
         setPaymentError(msg);
+        toast.error(msg, 'Payment Declined');
         setIsProcessingPayment(false);
       });
       rzp.open();
     } catch (err) {
       console.error('Failed to open Razorpay checkout:', err);
-      setPaymentError('Could not initialize Razorpay checkout. Please try again.');
+      const errMsg = 'Could not initialize Razorpay checkout. Please try again.';
+      setPaymentError(errMsg);
+      toast.error(errMsg, 'Checkout Error');
       setIsProcessingPayment(false);
     }
   };

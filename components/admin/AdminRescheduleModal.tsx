@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Appointment } from '@/lib/storage';
 import { DoctorOverride } from '@/lib/availability';
 import ThemedDatePicker from './ThemedDatePicker';
+import { toast } from '@/components/ui/Toast';
 
 const ALL_CLINIC_SLOTS = [
   { value: '09:00', label: '9:00 AM' },
@@ -138,7 +139,9 @@ export default function AdminRescheduleModal({
     setErrorMsg('');
 
     if (!newDate || !newTime) {
-      setErrorMsg('Please select both a new date and time slot.');
+      const msg = 'Please select both a new date and time slot.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Slot Required');
       return;
     }
 
@@ -147,7 +150,9 @@ export default function AdminRescheduleModal({
       newTime === appointment.time &&
       consultationType === (appointment.consultationType || 'online')
     ) {
-      setErrorMsg('Please select a different date, time, or consultation mode to reschedule.');
+      const msg = 'Please select a different date, time, or consultation mode to reschedule.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'No Changes Made');
       return;
     }
 
@@ -180,6 +185,11 @@ export default function AdminRescheduleModal({
         throw new Error(data.error || 'Failed to reschedule appointment.');
       }
 
+      toast.success(
+        `Appointment successfully rescheduled to ${newDate} at ${newTime}.`,
+        'Rescheduled Successfully'
+      );
+
       setSuccessResult({
         date: newDate,
         time: newTime,
@@ -189,7 +199,9 @@ export default function AdminRescheduleModal({
 
       onSuccess();
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Failed to reschedule appointment.');
+      const errText = err instanceof Error ? err.message : 'Failed to reschedule appointment.';
+      setErrorMsg(errText);
+      toast.error(errText, 'Reschedule Failed');
     } finally {
       setIsSubmitting(false);
     }
