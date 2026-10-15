@@ -218,12 +218,6 @@ export async function PATCH(request: NextRequest) {
       updates.date = targetDate;
       updates.time = targetTime;
       updates.consultationType = targetType;
-
-      // Append clinical audit note about rescheduling
-      if (rescheduleReason || targetDate !== existing.date || targetTime !== existing.time) {
-        const auditLog = `[Rescheduled on ${new Date().toLocaleDateString('en-IN')}: moved from ${existing.date} (${existing.time}) to ${targetDate} (${targetTime})${rescheduleReason ? ` - Reason: ${rescheduleReason}` : ''}]`;
-        updates.notes = existing.notes ? `${existing.notes}\n${auditLog}` : auditLog;
-      }
     }
 
     const updated = await updateAppointment(id, updates);
@@ -383,7 +377,7 @@ export async function POST(request: NextRequest) {
       paymentMethod: paymentMethod as any,
       paymentId: `${paymentMethod.toUpperCase()}-${appointmentId.slice(0, 8).toUpperCase()}`,
       paidAt: paymentStatus === 'paid' ? new Date().toISOString() : undefined,
-      notes: notes?.trim() || `${consultationType === 'offline' ? 'In-Clinic (Offline)' : 'Online (Google Meet)'} • Payment via ${paymentMethod}`,
+      notes: notes?.trim() || '',
       consultationType: consultationType as 'online' | 'offline',
     };
 
