@@ -255,8 +255,8 @@ export default function AdminBookAppointmentModal({
     // 3. Email Validation
     const trimmedEmail = email.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-    if (consultationType === 'online' && !trimmedEmail) {
-      const msg = 'Patient email address is required for Online Video (Google Meet) consultations.';
+    if (!trimmedEmail) {
+      const msg = 'Patient email address is required.';
       setErrorMsg(msg);
       toast.warning(msg, 'Email Required');
       return;
@@ -268,9 +268,15 @@ export default function AdminBookAppointmentModal({
       return;
     }
 
-    // 4. Age Validation (Optional, but if entered must be between 1 and 120)
+    // 4. Age Validation
     let validatedAge = 0;
-    if (age.trim()) {
+    if (!age.trim()) {
+      const msg = 'Please enter the patient age.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Age Required');
+      return;
+    }
+    {
       const parsedAge = Number(age.trim());
       if (!Number.isInteger(parsedAge) || parsedAge < 1 || parsedAge > 120) {
         const msg = 'Please enter a valid age between 1 and 120 years.';
@@ -279,6 +285,20 @@ export default function AdminBookAppointmentModal({
         return;
       }
       validatedAge = parsedAge;
+    }
+
+    if (!reason.trim()) {
+      const msg = 'Please select a consultation health concern.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Reason Required');
+      return;
+    }
+    const fee = Number(amount);
+    if (!amount.trim() || !Number.isFinite(fee) || fee <= 0) {
+      const msg = 'Please enter a valid consultation fee.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Fee Required');
+      return;
     }
 
     // 5. Date & Time Validation
@@ -480,7 +500,7 @@ export default function AdminBookAppointmentModal({
 
               <div className="drawer-success-btns-row">
                 <button type="button" className="btn-book-another" onClick={handleBookAnother}>
-                  + Book Another
+                  Book Another
                 </button>
                 <button type="button" className="btn-modal-done" onClick={handleResetAndClose}>
                   Done / Close
@@ -593,11 +613,7 @@ export default function AdminBookAppointmentModal({
                 <div className="form-field">
                   <label>
                     Patient Email Address
-                    {consultationType === 'online' ? (
-                      <span className="req">*</span>
-                    ) : (
-                      <small className="label-tip"> (Optional)</small>
-                    )}
+                    <span className="req">*</span>
                     <small className="label-tip"> (for Google Calendar &amp; Meet Invite)</small>
                   </label>
                   <input
@@ -611,13 +627,13 @@ export default function AdminBookAppointmentModal({
                       if (errorMsg) setErrorMsg('');
                     }}
                     className="modal-input"
-                    required={consultationType === 'online'}
+                    required
                   />
                 </div>
 
                 <div className="form-field">
                   <label>
-                    Age <small className="label-tip"> (Optional)</small>
+                    Age <span className="req">*</span>
                   </label>
                   <input
                     type="number"
@@ -630,17 +646,19 @@ export default function AdminBookAppointmentModal({
                       if (errorMsg) setErrorMsg('');
                     }}
                     className="modal-input"
+                    required
                   />
                 </div>
               </div>
 
               {/* 3. Reason for Visit */}
               <div className="form-field">
-                <label>Consultation Health Concern</label>
+                <label>Consultation Health Concern <span className="req">*</span></label>
                 <select
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   className="modal-input modal-select"
+                  required
                 >
                   {HEALTH_REASONS.map((r) => (
                     <option key={r} value={r}>
@@ -705,12 +723,13 @@ export default function AdminBookAppointmentModal({
 
                 <div className="form-row-3">
                   <div className="form-field">
-                    <label>Consultation Fee (₹)</label>
+                    <label>Consultation Fee (₹) <span className="req">*</span></label>
                     <input
                       type="number"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       className="modal-input font-bold"
+                      required
                     />
                   </div>
 
