@@ -5,19 +5,9 @@ import { DoctorOverride } from '@/lib/availability';
 import { Appointment } from '@/lib/storage';
 import ThemedDatePicker from './ThemedDatePicker';
 import { toast } from '@/components/ui/Toast';
-
-const ALL_SLOTS = [
-  { value: '09:00', label: '9:00 AM' },
-  { value: '09:45', label: '9:45 AM' },
-  { value: '10:30', label: '10:30 AM' },
-  { value: '11:15', label: '11:15 AM' },
-  { value: '12:00', label: '12:00 PM' },
-  { value: '12:45', label: '12:45 PM' },
-  { value: '15:00', label: '3:00 PM' },
-  { value: '15:45', label: '3:45 PM' },
-  { value: '16:30', label: '4:30 PM' },
-  { value: '17:15', label: '5:15 PM' },
-];
+import { useClinicSettings } from '@/lib/useClinicSettings';
+import { expandBookedTimes } from '@/lib/slots';
+import SlotSettingsCard from './SlotSettingsCard';
 
 const PRESET_REASONS = [
   'Personal Leave',
@@ -40,6 +30,7 @@ export default function DoctorAvailabilityManager({
   onRefresh,
   onOverridesChange,
 }: DoctorAvailabilityManagerProps) {
+  const { slots: ALL_SLOTS, slotValues, step } = useClinicSettings();
   const tomorrowIso = React.useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -59,10 +50,15 @@ export default function DoctorAvailabilityManager({
     null
   );
 
+  // A booked appointment also blocks neighbouring slots inside its duration + buffer window
   const bookedSlots = new Set(
-    appointments
-      .filter((appointment) => appointment.date === date && appointment.status !== 'cancelled')
-      .map((appointment) => appointment.time)
+    expandBookedTimes(
+      slotValues,
+      appointments
+        .filter((appointment) => appointment.date === date && appointment.status !== 'cancelled')
+        .map((appointment) => appointment.time),
+      step
+    )
   );
 
   const handleDateChange = (nextDate: string) => {
@@ -260,6 +256,9 @@ export default function DoctorAvailabilityManager({
         </div>
       )}
 
+      {/* Appointment duration + buffer + working hours */}
+      <SlotSettingsCard onSaved={onRefresh} />
+
       <div className="availability-layout-grid">
         {/* Availability Form Card */}
         <div className="availability-card form-card">
@@ -417,7 +416,7 @@ export default function DoctorAvailabilityManager({
                 <line x1="3" y1="10" x2="21" y2="10"></line>
               </svg>
               <p>No active doctor leaves or blackouts registered.</p>
-              <small>All clinic hours (Mon to Sat 9am-6pm) are currently open for patient booking.</small>
+              <small>All configured clinic hours (Mon to Sat) are currently open for patient booking.</small>
             </div>
           ) : (
             <div className="overrides-table-wrapper">
@@ -461,7 +460,7 @@ export default function DoctorAvailabilityManager({
                         </td>
                         <td className="col-override-details">
                           {item.type === 'full_day' ? (
-                            <span className="full-day-blocked-text">All 10 clinic slots blocked</span>
+                            <span className="full-day-blocked-text">All {ALL_SLOTS.length} clinic slots blocked</span>
                           ) : (
                             <div className="blocked-slots-badges">
                               {item.blockedSlots?.map((slotVal) => {

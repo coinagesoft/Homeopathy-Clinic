@@ -5,19 +5,7 @@ import { Appointment } from '@/lib/storage';
 import { DoctorOverride } from '@/lib/availability';
 import ThemedDatePicker from './ThemedDatePicker';
 import { toast } from '@/components/ui/Toast';
-
-const ALL_CLINIC_SLOTS = [
-  { value: '09:00', label: '9:00 AM' },
-  { value: '09:45', label: '9:45 AM' },
-  { value: '10:30', label: '10:30 AM' },
-  { value: '11:15', label: '11:15 AM' },
-  { value: '12:00', label: '12:00 PM' },
-  { value: '12:45', label: '12:45 PM' },
-  { value: '15:00', label: '3:00 PM' },
-  { value: '15:45', label: '3:45 PM' },
-  { value: '16:30', label: '4:30 PM' },
-  { value: '17:15', label: '5:15 PM' },
-];
+import { useClinicSettings } from '@/lib/useClinicSettings';
 
 const RESCHEDULE_REASONS = [
   'Patient requested date/time change',
@@ -43,6 +31,7 @@ export default function AdminRescheduleModal({
   appointments = [],
   overrides = [],
 }: AdminRescheduleModalProps) {
+  const { slots: ALL_CLINIC_SLOTS } = useClinicSettings();
   // Today in Asia/Kolkata
   const todayIso = useMemo(() => {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
@@ -509,4 +498,3 @@ export default function AdminRescheduleModal({
     </div>
   );
 }
-

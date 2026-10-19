@@ -3,7 +3,6 @@ import crypto from 'crypto';
 import {
   saveAppointment,
   getBookedSlotsForDate,
-  isSlotBooked,
   Appointment,
 } from '@/lib/storage';
 import {
@@ -17,21 +16,10 @@ import {
   getBlockedSlotsForDate,
 } from '@/lib/availability';
 import { getBulkCalendarAvailability } from '@/lib/cache';
+import { getClinicSettings, isTimeSlotTaken } from '@/lib/clinicSettings';
+import { generateSlots, getSlotStep, expandBookedTimes } from '@/lib/slots';
 
 export const dynamic = 'force-dynamic';
-
-const ALL_CLINIC_SLOTS = [
-  '09:00',
-  '09:45',
-  '10:30',
-  '11:15',
-  '12:00',
-  '12:45',
-  '15:00',
-  '15:45',
-  '16:30',
-  '17:15',
-];
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -40,20 +28,38 @@ export async function GET(request: NextRequest) {
 
   // If bulk requested or no single date specified, return whole calendar state in < 1ms
   if (bulk || !date) {
-    const bulkData = await getBulkCalendarAvailability();
-    return NextResponse.json(bulkData, {
+    const [bulkData, settings] = await Promise.all([
+      getBulkCalendarAvailability(),
+      getClinicSettings(),
+    ]);
+    const slotValues = generateSlots(settings).map((s) => s.value);
+    const step = getSlotStep(settings);
+
+    // Expand raw booked times into every slot they block (duration + buffer)
+    const bookedSlotsByDate: Record<string, string[]> = {};
+    for (const [d, times] of Object.entries(bulkData.bookedSlotsByDate)) {
+      bookedSlotsByDate[d] = expandBookedTimes(slotValues, times, step);
+    }
+
+    return NextResponse.json({ ...bulkData, bookedSlotsByDate, settings }, {
       headers: {
         'Cache-Control': 'public, max-age=10, stale-while-revalidate=30',
       },
     });
   }
 
-  const [doctorDateBlock, doctorBlockedSlots, dbBookedSlots] = await Promise.all([
+  const settings = await getClinicSettings();
+  const slotValues = generateSlots(settings).map((s) => s.value);
+  const step = getSlotStep(settings);
+
+  const [doctorDateBlock, doctorBlockedSlots, dbBookedTimes] = await Promise.all([
     isDateBlockedByDoctor(date),
-    getBlockedSlotsForDate(date, ALL_CLINIC_SLOTS),
+    getBlockedSlotsForDate(date, slotValues),
     getBookedSlotsForDate(date),
   ]);
 
+  // Booked times block neighbouring slots too (appointment duration + buffer)
+  const dbBookedSlots = expandBookedTimes(slotValues, dbBookedTimes, step);
   const allBookedSlots = Array.from(
     new Set([...dbBookedSlots, ...doctorBlockedSlots])
   );
@@ -196,7 +202,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const doctorBlockedSlots = await getBlockedSlotsForDate(date, ALL_CLINIC_SLOTS);
+    const settings = await getClinicSettings();
+    const slotValues = generateSlots(settings).map((s) => s.value);
+    if (!slotValues.includes(time)) {
+      return NextResponse.json(
+        { error: `${time} is not a valid appointment slot. Please select one of the available slots.` },
+        { status: 400 }
+      );
+    }
+
+    const doctorBlockedSlots = await getBlockedSlotsForDate(date, slotValues);
     if (doctorBlockedSlots.includes(time)) {
       return NextResponse.json(
         {
@@ -208,7 +223,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if slot is already booked in MySQL DB
-    const dbBooked = await isSlotBooked(date, time);
+    const dbBooked = await isTimeSlotTaken(date, time);
     if (dbBooked) {
       return NextResponse.json(
         {
@@ -290,4 +305,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

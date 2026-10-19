@@ -3,19 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import CalendarPicker from './CalendarPicker';
 import { toast } from '@/components/ui/Toast';
-
-const SLOTS = [
-  { value: '09:00', label: '9:00 AM' },
-  { value: '09:45', label: '9:45 AM' },
-  { value: '10:30', label: '10:30 AM' },
-  { value: '11:15', label: '11:15 AM' },
-  { value: '12:00', label: '12:00 PM' },
-  { value: '12:45', label: '12:45 PM' },
-  { value: '15:00', label: '3:00 PM' },
-  { value: '15:45', label: '3:45 PM' },
-  { value: '16:30', label: '4:30 PM' },
-  { value: '17:15', label: '5:15 PM' },
-];
+import { useClinicSettings } from '@/lib/useClinicSettings';
 
 interface FormData {
   fullName: string;
@@ -123,6 +111,7 @@ function loadRazorpayCheckoutScript(): Promise<boolean> {
 }
 
 export default function AppointmentForm() {
+  const { slots: SLOTS } = useClinicSettings();
   const [formData, setFormData] = useState<FormData>({
     fullName: '',
     phone: '',

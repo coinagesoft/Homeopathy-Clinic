@@ -5,19 +5,16 @@ import ThemedDatePicker from './ThemedDatePicker';
 import { Appointment } from '@/lib/storage';
 import { DoctorOverride } from '@/lib/availability';
 import { toast } from '@/components/ui/Toast';
+import { useClinicSettings } from '@/lib/useClinicSettings';
+import {
+  areAllSlotsOccupied,
+  DEFAULT_CLINIC_SETTINGS,
+  generateSlots,
+  getSlotStep,
+} from '@/lib/slots';
 
-const ALL_CLINIC_SLOTS = [
-  { value: '09:00', label: '9:00 AM' },
-  { value: '09:45', label: '9:45 AM' },
-  { value: '10:30', label: '10:30 AM' },
-  { value: '11:15', label: '11:15 AM' },
-  { value: '12:00', label: '12:00 PM' },
-  { value: '12:45', label: '12:45 PM' },
-  { value: '15:00', label: '3:00 PM' },
-  { value: '15:45', label: '3:45 PM' },
-  { value: '16:30', label: '4:30 PM' },
-  { value: '17:15', label: '5:15 PM' },
-];
+const DEFAULT_SLOT_VALUES = generateSlots(DEFAULT_CLINIC_SETTINGS).map((s) => s.value);
+const DEFAULT_STEP = getSlotStep(DEFAULT_CLINIC_SETTINGS);
 
 const HEALTH_REASONS = [
   'General Homeopathic Consultation',
@@ -33,7 +30,9 @@ const HEALTH_REASONS = [
 export function isClinicDateUnavailable(
   dateIso: string,
   overrides: DoctorOverride[] = [],
-  appointments: Appointment[] = []
+  appointments: Appointment[] = [],
+  slotValues: string[] = DEFAULT_SLOT_VALUES,
+  step: number = DEFAULT_STEP
 ): { unavailable: boolean; reason?: string } {
   if (!dateIso) return { unavailable: true, reason: 'Please select an appointment date.' };
   const d = new Date(`${dateIso}T00:00:00`);
@@ -53,8 +52,14 @@ export function isClinicDateUnavailable(
   // 3. Fully booked
   const activeAppts = appointments.filter((a) => a.date === dateIso && a.status !== 'cancelled');
   const blockedSlots = override?.type === 'specific_slots' ? (override.blockedSlots || []) : [];
-  const occupiedSlots = new Set([...activeAppts.map((a) => a.time), ...blockedSlots]);
-  if (ALL_CLINIC_SLOTS.every((s) => occupiedSlots.has(s.value))) {
+  if (
+    areAllSlotsOccupied(
+      slotValues,
+      activeAppts.map((a) => a.time),
+      blockedSlots,
+      step
+    )
+  ) {
     return { unavailable: true, reason: 'All appointment slots are fully booked for this date.' };
   }
 
@@ -64,7 +69,9 @@ export function isClinicDateUnavailable(
 export function findNextAvailableClinicDate(
   startDateIso: string,
   overrides: DoctorOverride[] = [],
-  appointments: Appointment[] = []
+  appointments: Appointment[] = [],
+  slotValues: string[] = DEFAULT_SLOT_VALUES,
+  step: number = DEFAULT_STEP
 ): string {
   let curr = new Date(`${startDateIso}T00:00:00`);
   if (isNaN(curr.getTime())) {
@@ -74,7 +81,7 @@ export function findNextAvailableClinicDate(
 
   for (let i = 0; i < 60; i++) {
     const iso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(curr);
-    const check = isClinicDateUnavailable(iso, overrides, appointments);
+    const check = isClinicDateUnavailable(iso, overrides, appointments, slotValues, step);
     if (!check.unavailable) {
       return iso;
     }
@@ -101,6 +108,7 @@ export default function AdminBookAppointmentModal({
   appointments = [],
   overrides = [],
 }: AdminBookAppointmentModalProps) {
+  const { slots: ALL_CLINIC_SLOTS, slotValues, step } = useClinicSettings();
   // Format today's date in YYYY-MM-DD
   const todayIso = useMemo(() => {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
@@ -122,11 +130,11 @@ export default function AdminBookAppointmentModal({
     if (
       initialDate &&
       initialDate > todayIso &&
-      !isClinicDateUnavailable(initialDate, overrides, appointments).unavailable
+      !isClinicDateUnavailable(initialDate, overrides, appointments, slotValues, step).unavailable
     ) {
       return initialDate;
     }
-    return findNextAvailableClinicDate(tomorrowIso, overrides, appointments);
+    return findNextAvailableClinicDate(tomorrowIso, overrides, appointments, slotValues, step);
   });
   const [time, setTime] = useState('10:30');
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'UPI' | 'Card' | 'Pending'>('Cash');
@@ -151,7 +159,7 @@ export default function AdminBookAppointmentModal({
     if (
       initialDate &&
       initialDate > todayIso &&
-      !isClinicDateUnavailable(initialDate, overrides, appointments).unavailable
+      !isClinicDateUnavailable(initialDate, overrides, appointments, slotValues, step).unavailable
     ) {
       setDate(initialDate);
     } else if (isOpen) {
@@ -159,14 +167,14 @@ export default function AdminBookAppointmentModal({
         if (
           curr &&
           curr > todayIso &&
-          !isClinicDateUnavailable(curr, overrides, appointments).unavailable
+          !isClinicDateUnavailable(curr, overrides, appointments, slotValues, step).unavailable
         ) {
           return curr;
         }
-        return findNextAvailableClinicDate(tomorrowIso, overrides, appointments);
+        return findNextAvailableClinicDate(tomorrowIso, overrides, appointments, slotValues, step);
       });
     }
-  }, [initialDate, todayIso, tomorrowIso, overrides, appointments, isOpen]);
+  }, [initialDate, todayIso, tomorrowIso, overrides, appointments, isOpen, slotValues, step]);
 
   // ESC key listener & body scroll lock
   useEffect(() => {
@@ -314,7 +322,7 @@ export default function AdminBookAppointmentModal({
       toast.warning(msg, 'Invalid Date');
       return;
     }
-    const unavailableCheck = isClinicDateUnavailable(date, overrides, appointments);
+    const unavailableCheck = isClinicDateUnavailable(date, overrides, appointments, slotValues, step);
     if (unavailableCheck.unavailable) {
       const msg = unavailableCheck.reason || 'The selected date is unavailable for booking.';
       setErrorMsg(msg);

@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { getCachedSlotDuration } from './clinicSettings';
 import {
   getGoogleTokens,
   saveGoogleTokens,
@@ -80,9 +81,9 @@ export function isGoogleConnected(): boolean {
 
 /**
  * Calculates start and end Date objects in Indian Standard Time (Asia/Kolkata).
- * Default slot length is 45 minutes.
+ * Default length follows the admin-configured appointment duration.
  */
-function getStartAndEndTime(date: string, time: string, durationMinutes = 45) {
+function getStartAndEndTime(date: string, time: string, durationMinutes = getCachedSlotDuration()) {
   // Format: YYYY-MM-DDTHH:mm:00+05:30
   const startIso = `${date}T${time}:00+05:30`;
   const [hours, minutes] = time.split(':').map(Number);
@@ -247,7 +248,7 @@ export async function rescheduleCalendarMeeting(
   newDate: string,
   newTime: string,
   newConsultationType?: 'online' | 'offline',
-  durationMinutes = 45
+  durationMinutes = getCachedSlotDuration()
 ): Promise<{ meetLink?: string; eventId?: string }> {
   const oauth2Client = getOAuth2Client();
   const isOffline = (newConsultationType || appointment.consultationType) === 'offline';
@@ -382,7 +383,7 @@ export async function getBookedSlotsFromCalendar(date: string): Promise<string[]
  */
 export function generateGoogleCalendarUrl(
   appointment: Appointment,
-  durationMinutes = 45
+  durationMinutes = getCachedSlotDuration()
 ): string {
   const start = new Date(`${appointment.date}T${appointment.time}:00+05:30`);
   const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
@@ -453,7 +454,7 @@ Doctor Email: ${DOCTOR_EMAIL}`;
  */
 export function generateIcsContent(
   appointment: Appointment,
-  durationMinutes = 45
+  durationMinutes = getCachedSlotDuration()
 ): string {
   const start = new Date(`${appointment.date}T${appointment.time}:00+05:30`);
   const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
@@ -495,5 +496,3 @@ export function generateIcsContent(
     'END:VCALENDAR',
   ].join('\r\n');
 }
-
-

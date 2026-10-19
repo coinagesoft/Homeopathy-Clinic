@@ -126,6 +126,16 @@ export async function ensureDatabaseSchema(): Promise<void> {
   `);
 
   await pool.execute(`
+    CREATE TABLE IF NOT EXISTS clinic_settings (
+      id INT PRIMARY KEY DEFAULT 1,
+      slot_duration INT NOT NULL DEFAULT 45,
+      buffer_time INT NOT NULL DEFAULT 0,
+      sessions TEXT,
+      updated_at VARCHAR(64) NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
+
+  await pool.execute(`
     CREATE TABLE IF NOT EXISTS google_oauth_tokens (
       id INT PRIMARY KEY DEFAULT 1,
       doctor_email VARCHAR(255) NOT NULL,

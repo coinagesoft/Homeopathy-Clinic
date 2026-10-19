@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppointmentById } from '@/lib/storage';
 import { generateIcsContent } from '@/lib/google';
+import { getClinicSettings } from '@/lib/clinicSettings';
 
 export async function GET(
   _request: NextRequest,
@@ -13,7 +14,8 @@ export async function GET(
     return NextResponse.json({ error: 'Appointment not found' }, { status: 404 });
   }
 
-  const ics = generateIcsContent(appointment);
+  const { slotDuration } = await getClinicSettings();
+  const ics = generateIcsContent(appointment, slotDuration);
 
   return new NextResponse(ics, {
     status: 200,
@@ -23,4 +25,3 @@ export async function GET(
     },
   });
 }
-

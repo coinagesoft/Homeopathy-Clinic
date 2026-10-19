@@ -3,6 +3,8 @@
 import React, { useState, useMemo } from 'react';
 import { Appointment } from '@/lib/storage';
 import { DoctorOverride } from '@/lib/availability';
+import { useClinicSettings } from '@/lib/useClinicSettings';
+import { areAllSlotsOccupied } from '@/lib/slots';
 
 interface AdminAppointmentCalendarProps {
   appointments: Appointment[];
@@ -27,25 +29,13 @@ const MONTH_NAMES = [
   'December',
 ];
 
-const ALL_CLINIC_SLOTS = [
-  '09:00',
-  '09:45',
-  '10:30',
-  '11:15',
-  '12:00',
-  '12:45',
-  '15:00',
-  '15:45',
-  '16:30',
-  '17:15',
-];
-
 export default function AdminAppointmentCalendar({
   appointments,
   overrides = [],
   onSelectPatient,
   onBookDate,
 }: AdminAppointmentCalendarProps) {
+  const { slotValues, step } = useClinicSettings();
   // Today in Asia/Kolkata
   const todayIso = useMemo(() => {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
@@ -232,8 +222,12 @@ export default function AdminAppointmentCalendar({
           // Occupied slots calculation
           const activeAppts = dayAppts.filter((a) => a.status !== 'cancelled');
           const blockedSlots = override?.type === 'specific_slots' ? (override.blockedSlots || []) : [];
-          const occupiedSlots = new Set([...activeAppts.map((a) => a.time), ...blockedSlots]);
-          const isFullyBooked = ALL_CLINIC_SLOTS.every((slot) => occupiedSlots.has(slot));
+          const isFullyBooked = areAllSlotsOccupied(
+            slotValues,
+            activeAppts.map((a) => a.time),
+            blockedSlots,
+            step
+          );
 
           const isPastOrToday = day.dateIso <= todayIso;
           const isBookingDisabled =
@@ -402,4 +396,3 @@ export default function AdminAppointmentCalendar({
     </div>
   );
 }
-

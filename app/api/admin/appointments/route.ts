@@ -6,11 +6,10 @@ import {
   updateAppointment,
   deleteAppointment,
   saveAppointment,
-  isSlotBooked,
-  isSlotBookedExcluding,
   Appointment,
 } from '@/lib/storage';
 import { verifyAdminRequest } from '@/lib/adminAuth';
+import { isTimeSlotTaken, getClinicSettings } from '@/lib/clinicSettings';
 import {
   isGoogleConnected,
   createCalendarMeeting,
@@ -191,7 +190,7 @@ export async function PATCH(request: NextRequest) {
 
       // Verify slot availability if changing date or time
       if (targetDate !== existing.date || targetTime !== existing.time) {
-        const isTaken = await isSlotBookedExcluding(targetDate, targetTime, id);
+        const isTaken = await isTimeSlotTaken(targetDate, targetTime, id);
         if (isTaken) {
           return NextResponse.json(
             { error: `The slot ${targetTime} on ${targetDate} is already booked by another appointment.` },
@@ -199,6 +198,9 @@ export async function PATCH(request: NextRequest) {
           );
         }
       }
+
+      // Make sure the calendar event length follows the current appointment settings
+      await getClinicSettings();
 
       // Sync with Google Calendar if connected
       if (isGoogleConnected()) {
@@ -355,7 +357,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if slot is already booked in MySQL DB
-    const dbBooked = await isSlotBooked(date, time);
+    const dbBooked = await isTimeSlotTaken(date, time);
     if (dbBooked) {
       return NextResponse.json(
         { error: `The time slot ${time} on ${date} is already booked. Please choose a different slot.` },
@@ -432,4 +434,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

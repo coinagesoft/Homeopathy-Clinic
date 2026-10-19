@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DoctorOverride } from '@/lib/availability';
 import { Appointment } from '@/lib/storage';
+import { useClinicSettings } from '@/lib/useClinicSettings';
+import { areAllSlotsOccupied } from '@/lib/slots';
 
 interface ThemedDatePickerProps {
   value: string; // "YYYY-MM-DD"
@@ -41,19 +43,6 @@ const WEEKDAY_NAMES = [
   { short: 'Fri', full: 'Friday' },
   { short: 'Sat', full: 'Saturday' },
   { short: 'Sun', full: 'Sunday', isSunday: true },
-];
-
-const ALL_CLINIC_SLOTS = [
-  '09:00',
-  '09:45',
-  '10:30',
-  '11:15',
-  '12:00',
-  '12:45',
-  '15:00',
-  '15:45',
-  '16:30',
-  '17:15',
 ];
 
 function formatDateDisplay(iso: string) {
@@ -101,6 +90,7 @@ export default function ThemedDatePicker({
   disableDoctorLeaves = true,
   disableFullyBooked = true,
 }: ThemedDatePickerProps) {
+  const { slotValues, step } = useClinicSettings();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -241,13 +231,17 @@ export default function ThemedDatePicker({
       const override = existingOverrides.find((o) => o.date === iso);
       const isFullDayLeave = override?.type === 'full_day';
 
-      // Check if all 10 slots are occupied/booked
+      // Check if every configured slot is occupied/booked
       let isFullyBooked = false;
       if (appointments && appointments.length > 0) {
         const activeAppts = appointments.filter((a) => a.date === iso && a.status !== 'cancelled');
         const blockedSlots = override?.type === 'specific_slots' ? (override.blockedSlots || []) : [];
-        const occupiedSlots = new Set([...activeAppts.map((a) => a.time), ...blockedSlots]);
-        isFullyBooked = ALL_CLINIC_SLOTS.every((slot) => occupiedSlots.has(slot));
+        isFullyBooked = areAllSlotsOccupied(
+          slotValues,
+          activeAppts.map((a) => a.time),
+          blockedSlots,
+          step
+        );
       }
 
       const isWeeklyOffDisabled = disableWeeklyOff && isSunday;
@@ -289,6 +283,8 @@ export default function ThemedDatePicker({
     disableWeeklyOff,
     disableDoctorLeaves,
     disableFullyBooked,
+    slotValues,
+    step,
   ]);
 
   const display = useMemo(() => formatDateDisplay(value), [value]);
