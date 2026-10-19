@@ -7,6 +7,7 @@ type WaInfo = {
   status: 'disconnected' | 'connecting' | 'qr' | 'connected';
   qr: string | null;
   phone: string | null;
+  error?: string | null;
 };
 
 interface Props {
@@ -45,13 +46,13 @@ export default function WhatsAppStatus({ adminFetch }: Props) {
     }
   }, [info]);
 
-  const unlink = async () => {
-    if (!window.confirm('Unlink the clinic WhatsApp?')) return;
+  const unlink = async (skipConfirm = false) => {
+    if (!skipConfirm && !window.confirm('Unlink the clinic WhatsApp?')) return;
     try {
       const res = await adminFetch('/api/admin/whatsapp', { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to unlink');
-      toast.success('WhatsApp unlinked.');
-      setOpen(false);
+      toast.success(skipConfirm ? 'Session reset. A new QR will appear shortly.' : 'WhatsApp unlinked.');
+      if (!skipConfirm) setOpen(false);
       void refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to unlink');
@@ -107,7 +108,7 @@ export default function WhatsAppStatus({ adminFetch }: Props) {
                 <p style={{ margin: '0 0 16px', fontSize: 14, color: '#475569' }}>
                   Logged in as <strong>+{info?.phone}</strong>
                 </p>
-                <button type="button" className="rx-btn rx-btn-outline" onClick={unlink}>
+                <button type="button" className="rx-btn rx-btn-outline" onClick={() => unlink()}>
                   Unlink / Log out
                 </button>
               </>
@@ -120,7 +121,15 @@ export default function WhatsAppStatus({ adminFetch }: Props) {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={info.qr} alt="WhatsApp QR code" width={260} height={260} style={{ margin: '0 auto' }} />
                 ) : (
-                  <div style={{ padding: '60px 0', color: '#64748b', fontSize: 14 }}>Generating QR code…</div>
+                  <div style={{ padding: '40px 0 20px', color: '#64748b', fontSize: 14 }}>Generating QR code…</div>
+                )}
+                {!info?.qr && info?.error && (
+                  <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#B45309', lineHeight: 1.5 }}>{info.error}</p>
+                )}
+                {!info?.qr && (
+                  <button type="button" className="rx-btn rx-btn-outline" onClick={() => unlink(true)}>
+                    Reset &amp; generate new QR
+                  </button>
                 )}
               </>
             )}
