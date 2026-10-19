@@ -8,6 +8,7 @@ import {
   IconUsers,
   IconPayments,
   IconAvailability,
+  IconMedicineBottle,
   IconPlus,
   IconExternalLink,
   IconLogOut,
@@ -21,6 +22,7 @@ interface AdminHeaderProps {
   totalAppointments: number;
   totalPatients: number;
   totalOverrides: number;
+  totalMedicines?: number;
   onQuickBook: () => void;
   onLogout: () => void;
 }
@@ -32,6 +34,7 @@ export default function AdminHeader({
   totalAppointments,
   totalPatients,
   totalOverrides,
+  totalMedicines = 0,
   onQuickBook,
   onLogout,
 }: AdminHeaderProps) {
@@ -45,37 +48,9 @@ export default function AdminHeader({
               <strong>Dr. Aarav Mehta</strong>
               <span>Admin Portal</span>
             </Link>
-            {/* <span className="admin-badge-doctor">
-              {adminUser?.email ? `${adminUser.email} • Verified` : 'BHMS, MD (Homeopathy) • Pune'}
-            </span> */}
           </div>
 
           <div className="admin-topbar-right">
-            {/* <button
-              type="button"
-              className="btn-quick-book"
-              onClick={onQuickBook}
-              title="Schedule In-Clinic Walk-in or Online Consultation with Cash/UPI payment"
-            >
-              <IconPlus />
-              <span>Book Appointment</span>
-            </button> */}
-
-            {/* <button
-              type="button"
-              className="btn-quick-leave"
-              onClick={() => setActiveTab('availability')}
-              title="Configure doctor leaves or schedule blackout dates"
-            >
-              <IconPlus />
-              <span>Set Doctor Leave</span>
-            </button> */}
-
-            {/* <Link href="/appointment" className="btn-portal-view" target="_blank">
-              <span>Open Booking Portal</span>
-              <IconExternalLink />
-            </Link> */}
-
             <button type="button" className="btn-logout" onClick={onLogout}>
               <IconLogOut />
               <span>Logout</span>
@@ -133,6 +108,18 @@ export default function AdminHeader({
             <IconAvailability />
             <span>Doctor Availability</span>
             <span className="tab-counter counter-amber">{totalOverrides}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`admin-tab-btn ${activeTab === 'medicines' ? 'active' : ''}`}
+            onClick={() => setActiveTab('medicines')}
+          >
+            <IconMedicineBottle />
+            <span>Medicines</span>
+            {totalMedicines > 0 && (
+              <span className="tab-counter counter-emerald">{totalMedicines}</span>
+            )}
           </button>
         </div>
       </nav>

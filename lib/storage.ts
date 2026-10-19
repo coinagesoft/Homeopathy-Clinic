@@ -283,6 +283,7 @@ export async function deleteAppointment(id: string): Promise<boolean> {
   const existing = await getAppointmentById(id);
 
   await pool.execute(`DELETE FROM payments WHERE appointment_id = ?`, [id]);
+  await pool.execute(`DELETE FROM prescriptions WHERE appointment_id = ?`, [id]);
   await pool.execute(`DELETE FROM appointments WHERE id = ?`, [id]);
   removeCachedAppointment(id);
 

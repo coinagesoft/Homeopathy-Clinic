@@ -22,6 +22,9 @@ import DoctorAvailabilityManager from '@/components/admin/DoctorAvailabilityMana
 import PatientHistoryModal from '@/components/admin/PatientHistoryModal';
 import AdminBookAppointmentModal from '@/components/admin/AdminBookAppointmentModal';
 import AdminRescheduleModal from '@/components/admin/AdminRescheduleModal';
+import PrescriptionModal from '@/components/admin/PrescriptionModal';
+import AdminMedicinesTab from '@/components/admin/tabs/AdminMedicinesTab';
+import { Medicine } from '@/lib/medicines';
 import { toast } from '@/components/ui/Toast';
 
 // Customer identity resolution helpers
@@ -87,11 +90,18 @@ export default function AdminPage() {
   // Admin Reschedule Appointment Drawer State
   const [rescheduleAppointment, setRescheduleAppointment] = useState<Appointment | null>(null);
 
+  // Prescription Modal State
+  const [prescriptionAppointment, setPrescriptionAppointment] = useState<Appointment | null>(null);
+
   // Revenue Analytics Data
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
 
   // Doctor Availability Overrides
   const [overrides, setOverrides] = useState<DoctorOverride[]>([]);
+
+  // Medicines Database State
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [isLoadingMedicines, setIsLoadingMedicines] = useState(false);
 
   // Selected Patient for History Modal
   const [selectedPatient, setSelectedPatient] = useState<PatientGroup | null>(null);
@@ -304,14 +314,29 @@ export default function AdminPage() {
       .catch((err) => console.error('Failed to load doctor availability:', err));
   }, [adminFetch]);
 
+  // Fetch Medicines Database
+  const loadMedicines = useCallback(() => {
+    setIsLoadingMedicines(true);
+    adminFetch(`/api/admin/medicines?_t=${Date.now()}`, {
+      cache: 'no-store',
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.medicines)) setMedicines(data.medicines);
+      })
+      .catch((err) => console.error('Failed to load medicines:', err))
+      .finally(() => setIsLoadingMedicines(false));
+  }, [adminFetch]);
+
   // Initial Data Load on Authentication
   useEffect(() => {
     if (isAuthenticated) {
       loadAppointments();
       loadRevenue();
       loadOverrides();
+      loadMedicines();
     }
-  }, [isAuthenticated, loadAppointments, loadRevenue, loadOverrides]);
+  }, [isAuthenticated, loadAppointments, loadRevenue, loadOverrides, loadMedicines]);
 
   // Update Appointment Status (Instant Optimistic UI + Server Sync)
   const handleUpdateStatus = async (
@@ -561,6 +586,7 @@ export default function AdminPage() {
         totalAppointments={stats.totalCount}
         totalPatients={patientDirectory.length}
         totalOverrides={overrides.length}
+        totalMedicines={medicines.length}
         onQuickBook={() => {
           setBookingDate('');
           setShowBookModal(true);
@@ -602,6 +628,7 @@ export default function AdminPage() {
             }}
             onSelectPatient={(appt) => setSelectedPatient(findPatientGroup(appt))}
             onReschedule={(appt) => setRescheduleAppointment(appt)}
+            onPrescribe={(appt) => setPrescriptionAppointment(appt)}
             onUpdateStatus={handleUpdateStatus}
             onUpdatePayment={handleUpdatePayment}
             onDeleteAppointment={handleDeleteAppointment}
@@ -635,6 +662,15 @@ export default function AdminPage() {
             />
           </div>
         )}
+
+        {activeTab === 'medicines' && (
+          <AdminMedicinesTab
+            medicines={medicines}
+            isLoading={isLoadingMedicines}
+            onRefresh={loadMedicines}
+            adminFetch={adminFetch}
+          />
+        )}
       </main>
 
       {/* Patient Consultation History Modal */}
@@ -659,6 +695,14 @@ export default function AdminPage() {
           loadAppointments();
           loadRevenue();
         }}
+      />
+
+      {/* Prescription: write, print, email */}
+      <PrescriptionModal
+        appointment={prescriptionAppointment}
+        adminFetch={adminFetch}
+        availableMedicines={medicines}
+        onClose={() => setPrescriptionAppointment(null)}
       />
 
       {/* Admin Reschedule Appointment Slide-Over Drawer */}

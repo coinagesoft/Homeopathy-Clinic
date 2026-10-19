@@ -16,6 +16,7 @@ import {
   IconSearch,
   IconFilter,
   IconTable,
+  IconPill,
 } from '@/components/admin/AdminIcons';
 import { AdminStats } from '@/components/admin/types';
 
@@ -38,6 +39,7 @@ interface AdminAppointmentsTabProps {
   onQuickBook: (dateIso?: string) => void;
   onSelectPatient: (appt: Appointment) => void;
   onReschedule: (appt: Appointment) => void;
+  onPrescribe: (appt: Appointment) => void;
   onUpdateStatus: (
     id: string,
     status: 'confirmed' | 'completed' | 'cancelled'
@@ -68,6 +70,7 @@ export default function AdminAppointmentsTab({
   onQuickBook,
   onSelectPatient,
   onReschedule,
+  onPrescribe,
   onUpdateStatus,
   onUpdatePayment,
   onDeleteAppointment,
@@ -565,6 +568,16 @@ export default function AdminAppointmentsTab({
 
                           <button
                             type="button"
+                            className="action-pill action-pill-rx"
+                            title="Write, print or email prescription"
+                            onClick={() => onPrescribe(appt)}
+                          >
+                            <IconPill size={13} />
+                            <span>Prescription</span>
+                          </button>
+
+                          <button
+                            type="button"
                             className="action-pill action-pill-reschedule"
                             title="Reschedule appointment date & time"
                             onClick={() => onReschedule(appt)}
@@ -615,4 +628,3 @@ export default function AdminAppointmentsTab({
     </div>
   );
 }
-

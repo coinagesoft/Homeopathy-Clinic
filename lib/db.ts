@@ -14,6 +14,7 @@ const DB_CONFIG = {
   keepAliveInitialDelay: 10000,
   queueLimit: 0,
   connectTimeout: 15000,
+  charset: 'utf8mb4',
 };
 
 declare global {
@@ -136,9 +137,43 @@ export async function ensureDatabaseSchema(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
 
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS prescriptions (
+      id VARCHAR(64) PRIMARY KEY,
+      appointment_id VARCHAR(64) NOT NULL UNIQUE,
+      patient_name VARCHAR(255) NOT NULL,
+      patient_email VARCHAR(255) NOT NULL,
+      patient_phone VARCHAR(32) NOT NULL,
+      patient_age INT NOT NULL DEFAULT 0,
+      prescription_date VARCHAR(16) NOT NULL,
+      diagnosis TEXT,
+      medicines LONGTEXT,
+      advice TEXT,
+      follow_up VARCHAR(255),
+      emailed_at VARCHAR(64),
+      created_at VARCHAR(64) NOT NULL,
+      updated_at VARCHAR(64) NOT NULL,
+      INDEX idx_rx_email (patient_email)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS medicines (
+      id VARCHAR(64) PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      potency VARCHAR(255) DEFAULT '',
+      form VARCHAR(100) DEFAULT 'Dilution',
+      category VARCHAR(150) DEFAULT '',
+      notes TEXT,
+      created_at VARCHAR(64) NOT NULL,
+      updated_at VARCHAR(64) NOT NULL,
+      INDEX idx_med_name (name),
+      INDEX idx_med_category (category)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
+
   global.__schemaInitialized = true;
   })();
 
   return global.__schemaPromise;
 }
-

@@ -1,7 +1,11 @@
 import { Appointment } from '@/lib/storage';
 import { DoctorOverride } from '@/lib/availability';
 
-export type AdminTabType = 'overview' | 'appointments' | 'patients' | 'payments' | 'availability';
+import { Medicine } from '@/lib/medicines';
+
+export type AdminTabType = 'overview' | 'appointments' | 'patients' | 'payments' | 'availability' | 'medicines';
+
+export type { Medicine };
 
 export interface AdminUser {
   email: string;
