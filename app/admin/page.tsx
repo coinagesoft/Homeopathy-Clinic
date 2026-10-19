@@ -592,6 +592,7 @@ export default function AdminPage() {
           setShowBookModal(true);
         }}
         onLogout={handleLogout}
+        adminFetch={adminFetch}
       />
 
       {/* Main Admin Content Tab Panes */}

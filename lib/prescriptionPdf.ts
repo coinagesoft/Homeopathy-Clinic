@@ -9,17 +9,19 @@ import {
 // A4 in PDF points
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
-const MARGIN = 42;
+const MARGIN = 44;
 const CONTENT_W = PAGE_W - MARGIN * 2;
+const RIGHT = PAGE_W - MARGIN;
+const BOTTOM_RESERVE = 78; // space kept free above the footer
 
-const INDIGO = rgb(0.216, 0.188, 0.639); // #3730A3
-const BRAND = rgb(0.337, 0.353, 0.812); // #565ACF
-const ORANGE = rgb(0.918, 0.345, 0.047); // #EA580C
-const INK = rgb(0.122, 0.161, 0.216); // #1F2937
-const GRAY = rgb(0.42, 0.447, 0.502); // #6B7280
-const LIGHT = rgb(0.898, 0.906, 0.922); // #E5E7EB
-const TINT = rgb(0.961, 0.965, 1); // #F5F6FF
-const HEAD_BG = rgb(0.933, 0.941, 1); // #EEF0FF
+// Palette: one deep navy accent, neutral greys (prints cleanly in black and white)
+const NAVY = rgb(0.098, 0.122, 0.325); // #191F53
+const INK = rgb(0.09, 0.11, 0.15); // #171C26
+const GRAY = rgb(0.38, 0.41, 0.46); // #616975
+const MID = rgb(0.58, 0.61, 0.66); // #949CA8
+const RULE = rgb(0.75, 0.78, 0.83); // #BFC7D4
+const HAIR = rgb(0.9, 0.91, 0.94); // #E6E8F0
+const HEAD_FILL = rgb(0.94, 0.95, 0.97); // #F0F2F7
 
 /** Standard PDF fonts only cover Latin text; drop anything the font can't draw so the PDF never fails. */
 function clean(text: string, font: PDFFont): string {
@@ -71,238 +73,313 @@ function wrap(text: string, font: PDFFont, size: number, maxWidth: number): stri
 
 export async function generatePrescriptionPdf(rx: Prescription): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`Prescription - ${clean(rx.patientName, await pdf.embedFont(StandardFonts.Helvetica))}`);
-  pdf.setAuthor(CLINIC_INFO.doctorName);
 
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const serifItalic = await pdf.embedFont(StandardFonts.TimesRomanBoldItalic);
+  const italic = await pdf.embedFont(StandardFonts.HelveticaOblique);
+  const serifBold = await pdf.embedFont(StandardFonts.TimesRomanBold);
+  const serifBoldItalic = await pdf.embedFont(StandardFonts.TimesRomanBoldItalic);
+
+  pdf.setTitle(`Prescription - ${clean(rx.patientName, regular)}`);
+  pdf.setAuthor(CLINIC_INFO.doctorName);
 
   let page: PDFPage = pdf.addPage([PAGE_W, PAGE_H]);
   let y = PAGE_H - MARGIN;
 
-  const newPage = () => {
-    page = pdf.addPage([PAGE_W, PAGE_H]);
-    y = PAGE_H - MARGIN;
-  };
-  const ensure = (needed: number) => {
-    if (y - needed < MARGIN + 60) newPage();
-  };
-  const text = (
-    value: string,
-    x: number,
-    yy: number,
-    opts: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb> } = {}
-  ) => {
+  type Color = ReturnType<typeof rgb>;
+  type TextOpts = { font?: PDFFont; size?: number; color?: Color };
+
+  const text = (value: string, x: number, yy: number, opts: TextOpts = {}) => {
     const font = opts.font || regular;
     const t = clean(value, font);
     if (t) page.drawText(t, { x, y: yy, size: opts.size || 10, font, color: opts.color || INK });
   };
 
-  // ---------- Letterhead ----------
-  text(CLINIC_INFO.doctorName, MARGIN, y - 18, { font: bold, size: 20, color: INDIGO });
-  const qualLines = wrap(CLINIC_INFO.qualification, regular, 8.5, CONTENT_W * 0.55);
-  let hy = y - 33;
-  qualLines.forEach((l) => {
-    text(l, MARGIN, hy, { size: 8.5, color: GRAY });
-    hy -= 11;
-  });
-  text(CLINIC_INFO.clinicName, MARGIN, hy - 1, { font: bold, size: 10, color: ORANGE });
-  const leftBottom = hy - 8;
+  const textRight = (value: string, xRight: number, yy: number, opts: TextOpts = {}) => {
+    const font = opts.font || regular;
+    const t = clean(value, font);
+    if (t) {
+      page.drawText(t, {
+        x: xRight - font.widthOfTextAtSize(t, opts.size || 10),
+        y: yy,
+        size: opts.size || 10,
+        font,
+        color: opts.color || INK,
+      });
+    }
+  };
 
-  const rightX = PAGE_W - MARGIN;
-  let ry = y - 14;
-  const addrLines = wrap(CLINIC_INFO.address, regular, 8.5, CONTENT_W * 0.38);
-  [...addrLines, `Phone: ${CLINIC_INFO.phone}`].forEach((l) => {
-    const t = clean(l, regular);
-    page.drawText(t, {
-      x: rightX - regular.widthOfTextAtSize(t, 8.5),
-      y: ry,
-      size: 8.5,
-      font: regular,
-      color: GRAY,
-    });
+  const textCentered = (value: string, xCenter: number, yy: number, opts: TextOpts = {}) => {
+    const font = opts.font || regular;
+    const t = clean(value, font);
+    if (t) {
+      page.drawText(t, {
+        x: xCenter - font.widthOfTextAtSize(t, opts.size || 10) / 2,
+        y: yy,
+        size: opts.size || 10,
+        font,
+        color: opts.color || INK,
+      });
+    }
+  };
+
+  const hline = (yy: number, thickness: number, color: Color, x1 = MARGIN, x2 = RIGHT) =>
+    page.drawLine({ start: { x: x1, y: yy }, end: { x: x2, y: yy }, thickness, color });
+
+  const vline = (xx: number, y1: number, y2: number, thickness: number, color: Color) =>
+    page.drawLine({ start: { x: xx, y: y1 }, end: { x: xx, y: y2 }, thickness, color });
+
+  /** Heavy rule with a fine rule beneath it: the letterhead / running-header divider. */
+  const doubleRule = (yy: number) => {
+    hline(yy, 1.8, NAVY);
+    hline(yy - 3.5, 0.5, RULE);
+  };
+
+  /** Running header for pages 2+. */
+  const newPage = () => {
+    page = pdf.addPage([PAGE_W, PAGE_H]);
+    text(CLINIC_INFO.doctorName, MARGIN, PAGE_H - MARGIN - 6, { font: serifBold, size: 14, color: NAVY });
+    textRight(
+      `Prescription for ${rx.patientName}   |   ${formatRxDate(rx.date)}`,
+      RIGHT,
+      PAGE_H - MARGIN - 5,
+      { size: 8.5, color: GRAY }
+    );
+    doubleRule(PAGE_H - MARGIN - 16);
+    y = PAGE_H - MARGIN - 46;
+  };
+
+  const ensure = (needed: number) => {
+    if (y - needed < MARGIN + BOTTOM_RESERVE) newPage();
+  };
+
+  /** Section label followed by a fine rule across the page. */
+  const sectionHeading = (title: string) => {
+    const t = clean(title, bold);
+    text(t, MARGIN, y, { font: bold, size: 9.5, color: NAVY });
+    hline(y + 3, 0.6, RULE, MARGIN + bold.widthOfTextAtSize(t, 9.5) + 10, RIGHT);
+    y -= 18;
+  };
+
+  // ---------- Letterhead ----------
+  const qualLines = wrap(CLINIC_INFO.qualification, regular, 8, CONTENT_W * 0.55);
+  const addrLines = wrap(CLINIC_INFO.address, regular, 8.5, CONTENT_W * 0.36);
+
+  const nameBase = y - 22;
+  text(CLINIC_INFO.doctorName, MARGIN, nameBase, { font: serifBold, size: 26, color: NAVY });
+  let ly = nameBase - 16;
+  qualLines.forEach((l) => {
+    text(l, MARGIN, ly, { size: 8, color: GRAY });
+    ly -= 11;
+  });
+  const leftEnd = ly + 11;
+
+  let ry = nameBase + 6;
+  textRight(CLINIC_INFO.clinicName, RIGHT, ry, { font: bold, size: 11, color: INK });
+  ry -= 14;
+  addrLines.forEach((l) => {
+    textRight(l, RIGHT, ry, { size: 8.5, color: GRAY });
     ry -= 11;
   });
+  textRight(`Phone: ${CLINIC_INFO.phone}`, RIGHT, ry, { size: 8.5, color: GRAY });
+  const rightEnd = ry;
 
-  y = Math.min(leftBottom, ry) - 6;
-  page.drawRectangle({ x: MARGIN, y, width: CONTENT_W, height: 2.5, color: BRAND });
-  y -= 16;
+  y = Math.min(leftEnd, rightEnd) - 14;
+  doubleRule(y);
+  y -= 30;
 
-  // ---------- Patient box ----------
-  const boxH = 44;
+  // ---------- Patient details (ruled form) ----------
+  const cells = [
+    { label: 'Patient name', value: rx.patientName || '-', w: CONTENT_W * 0.4 },
+    { label: 'Age', value: rx.patientAge ? `${rx.patientAge} years` : '-', w: CONTENT_W * 0.14 },
+    { label: 'Phone', value: rx.patientPhone || '-', w: CONTENT_W * 0.26 },
+    { label: 'Date', value: formatRxDate(rx.date) || '-', w: CONTENT_W * 0.2 },
+  ];
+  const formH = 40;
   page.drawRectangle({
     x: MARGIN,
-    y: y - boxH,
+    y: y - formH,
     width: CONTENT_W,
-    height: boxH,
-    color: TINT,
-    borderColor: rgb(0.875, 0.886, 0.984),
+    height: formH,
+    borderColor: RULE,
     borderWidth: 0.8,
   });
-  const cols = [
-    { label: 'Patient', value: rx.patientName || '-', x: MARGIN + 12 },
-    { label: 'Age', value: rx.patientAge ? `${rx.patientAge} yrs` : '-', x: MARGIN + 215 },
-    { label: 'Phone', value: rx.patientPhone || '-', x: MARGIN + 290 },
-  ];
-  cols.forEach((c) => {
-    text(c.label, c.x, y - 15, { size: 8, color: GRAY });
-    text(c.value, c.x, y - 31, { font: bold, size: 10.5 });
+  let cx = MARGIN;
+  cells.forEach((c, i) => {
+    if (i > 0) vline(cx, y, y - formH, 0.6, RULE);
+    text(c.label, cx + 10, y - 13, { size: 7.5, color: GRAY });
+    const lines = wrap(c.value, bold, 10.5, c.w - 20);
+    text(lines[0] || '-', cx + 10, y - 29, { font: bold, size: 10.5 });
+    cx += c.w;
   });
-  const dateStr = clean(formatRxDate(rx.date), bold);
-  text('Date', PAGE_W - MARGIN - 12 - bold.widthOfTextAtSize(dateStr, 10.5), y - 15, { size: 8, color: GRAY });
-  text(dateStr, PAGE_W - MARGIN - 12 - bold.widthOfTextAtSize(dateStr, 10.5), y - 31, { font: bold, size: 10.5 });
-  y -= boxH + 16;
+  y -= formH + 28;
 
   // ---------- Diagnosis ----------
   if (rx.diagnosis.trim()) {
-    text('COMPLAINTS / DIAGNOSIS', MARGIN, y - 8, { font: bold, size: 8, color: GRAY });
-    y -= 22;
+    sectionHeading('Complaints / Diagnosis');
     wrap(rx.diagnosis, regular, 10.5, CONTENT_W).forEach((l) => {
-      ensure(14);
+      ensure(16);
       text(l, MARGIN, y, { size: 10.5 });
-      y -= 14;
+      y -= 15;
     });
-    y -= 6;
+    y -= 14;
   }
 
-  // ---------- Rx table ----------
-  text('Rx', MARGIN, y - 20, { font: serifItalic, size: 26, color: INDIGO });
-  y -= 30;
+  // ---------- Rx ----------
+  ensure(100);
+  text('Rx', MARGIN, y - 16, { font: serifBoldItalic, size: 24, color: NAVY });
+  y -= 34;
 
-  const col = {
-    num: MARGIN + 6,
-    med: MARGIN + 30,
-    qty: MARGIN + 250,
-    when: MARGIN + 335,
-    dur: MARGIN + 445,
-  };
-  const widths = {
-    med: col.qty - col.med - 10,
-    qty: col.when - col.qty - 10,
-    when: col.dur - col.when - 10,
-    dur: PAGE_W - MARGIN - col.dur - 4,
-  };
+  // ---------- Medicines table ----------
+  const widths = [24, 146, 62, 114, 72, 85]; // sums to CONTENT_W (503.28)
+  const sum = widths.reduce((a, b) => a + b, 0);
+  widths[1] += CONTENT_W - sum; // absorb rounding into the medicine column
+  const xs: number[] = [];
+  widths.reduce((acc, w) => {
+    xs.push(acc);
+    return acc + w;
+  }, MARGIN);
+  const PAD = 8;
 
   const drawHeader = () => {
-    page.drawRectangle({ x: MARGIN, y: y - 20, width: CONTENT_W, height: 20, color: HEAD_BG });
-    const hy2 = y - 14;
-    text('#', col.num, hy2, { font: bold, size: 8, color: GRAY });
-    text('MEDICINE', col.med, hy2, { font: bold, size: 8, color: GRAY });
-    text('QUANTITY', col.qty, hy2, { font: bold, size: 8, color: GRAY });
-    text('WHEN TO TAKE', col.when, hy2, { font: bold, size: 8, color: GRAY });
-    text('DURATION', col.dur, hy2, { font: bold, size: 8, color: GRAY });
-    y -= 20;
+    const h = 24;
+    page.drawRectangle({
+      x: MARGIN,
+      y: y - h,
+      width: CONTENT_W,
+      height: h,
+      color: HEAD_FILL,
+      borderColor: RULE,
+      borderWidth: 0.8,
+    });
+    const labels = ['#', 'Medicine', 'Quantity', 'When to take', 'Food', 'Duration'];
+    labels.forEach((l, i) => text(l, xs[i] + (i === 0 ? 7 : PAD), y - 15.5, { font: bold, size: 8.5, color: NAVY }));
+    y -= h;
   };
   drawHeader();
 
   const meds = rx.medicines.filter((m) => m.name.trim());
   if (meds.length === 0) {
-    text('No medicines added.', col.med, y - 18, { color: GRAY });
-    y -= 30;
+    vline(MARGIN, y, y - 40, 0.8, RULE);
+    vline(RIGHT, y, y - 40, 0.8, RULE);
+    text('No medicines added.', xs[1], y - 24, { color: GRAY });
+    y -= 40;
   }
 
   meds.forEach((m, i) => {
-    const nameLine = m.potency ? `${m.name}  ${m.potency}` : m.name;
-    const nameLines = wrap(nameLine, bold, 10.5, widths.med);
-    const noteLines = m.instructions ? wrap(m.instructions, regular, 8.5, widths.med) : [];
-    const qtyLines = wrap(m.quantity || '-', regular, 10, widths.qty);
+    const potency = m.potency ? clean(m.potency, bold) : '';
+    const label = potency ? `${clean(m.name, bold)}  ${potency}` : clean(m.name, bold);
+    const nameLines = wrap(label, bold, 10.5, widths[1] - PAD * 2);
+    const noteLines = m.instructions ? wrap(m.instructions, italic, 8.5, widths[1] - PAD * 2) : [];
+    const qtyLines = wrap(m.quantity || '-', regular, 10, widths[2] - PAD * 2);
     const schedule = [m.morning && 'Morning', m.afternoon && 'Afternoon', m.night && 'Night']
       .filter(Boolean)
-      .join(', ') || '-';
-    const whenLines = wrap(schedule, regular, 10, widths.when);
-    const timing = describeTiming(m.timing);
-    const timingLines = timing ? wrap(timing, regular, 8.5, widths.when) : [];
-    const durLines = wrap(m.duration || '-', regular, 10, widths.dur);
+      .join(', ');
+    const whenLines = wrap(schedule || '-', regular, 10, widths[3] - PAD * 2);
+    const foodLines = wrap(describeTiming(m.timing) || '-', regular, 10, widths[4] - PAD * 2);
+    const durLines = wrap(m.duration || '-', regular, 10, widths[5] - PAD * 2);
 
-    const h1 = nameLines.length * 13 + noteLines.length * 11 + (noteLines.length ? 2 : 0);
+    const h1 = nameLines.length * 14 + (noteLines.length ? 3 + noteLines.length * 11 : 0);
     const h2 = qtyLines.length * 13;
-    const h3 = whenLines.length * 13 + timingLines.length * 11;
-    const h4 = durLines.length * 13;
-    const rowH = Math.max(h1, h2, h3, h4, 14) + 16;
+    const h3 = whenLines.length * 13;
+    const h4 = foodLines.length * 13;
+    const h5 = durLines.length * 13;
+    const rowH = Math.max(h1, h2, h3, h4, h5, 14) + 22;
 
-    if (y - rowH < MARGIN + 60) {
+    if (y - rowH < MARGIN + BOTTOM_RESERVE) {
+      hline(y, 0.8, RULE); // close the table on this page
       newPage();
       drawHeader();
     }
 
-    const top = y - 12;
-    text(String(i + 1), col.num, top, { color: GRAY });
+    const top = y - 16;
+
+    text(String(i + 1), xs[0] + 7, top, { color: GRAY });
+
     let ty = top;
-    nameLines.forEach((l) => {
-      text(l, col.med, ty, { font: bold, size: 10.5 });
-      ty -= 13;
+    nameLines.forEach((l, idx) => {
+      if (idx === 0 && potency && l.endsWith(potency)) {
+        const base = l.slice(0, l.length - potency.length).trimEnd();
+        text(base, xs[1] + PAD, ty, { font: bold, size: 10.5 });
+        text(potency, xs[1] + PAD + bold.widthOfTextAtSize(base + '  ', 10.5), ty, { size: 10.5 });
+      } else {
+        text(l, xs[1] + PAD, ty, { font: bold, size: 10.5 });
+      }
+      ty -= 14;
     });
     noteLines.forEach((l) => {
-      text(l, col.med, ty + 1, { size: 8.5, color: GRAY });
+      text(l, xs[1] + PAD, ty - 1, { font: italic, size: 8.5, color: GRAY });
       ty -= 11;
-    });
-    ty = top;
-    qtyLines.forEach((l) => {
-      text(l, col.qty, ty);
-      ty -= 13;
-    });
-    ty = top;
-    whenLines.forEach((l) => {
-      text(l, col.when, ty);
-      ty -= 13;
-    });
-    timingLines.forEach((l) => {
-      text(l, col.when, ty + 1, { size: 8.5, color: GRAY });
-      ty -= 11;
-    });
-    ty = top;
-    durLines.forEach((l) => {
-      text(l, col.dur, ty);
-      ty -= 13;
     });
 
+    const drawCol = (lines: string[], colIdx: number) => {
+      let cy = top;
+      lines.forEach((l) => {
+        text(l, xs[colIdx] + PAD, cy);
+        cy -= 13;
+      });
+    };
+    drawCol(qtyLines, 2);
+    drawCol(whenLines, 3);
+    drawCol(foodLines, 4);
+    drawCol(durLines, 5);
+
+    // side borders + hairline between rows
+    vline(MARGIN, y, y - rowH, 0.8, RULE);
+    vline(RIGHT, y, y - rowH, 0.8, RULE);
     y -= rowH;
-    page.drawLine({
-      start: { x: MARGIN, y },
-      end: { x: PAGE_W - MARGIN, y },
-      thickness: 0.6,
-      color: LIGHT,
-    });
+    if (i < meds.length - 1) hline(y, 0.5, HAIR);
   });
 
-  y -= 18;
+  hline(y, 0.8, RULE);
+  y -= 30;
 
   // ---------- Advice ----------
   if (rx.advice.trim()) {
-    ensure(40);
-    text('ADVICE / DIET', MARGIN, y - 8, { font: bold, size: 8, color: GRAY });
-    y -= 22;
+    ensure(54);
+    sectionHeading('Advice / Diet');
     wrap(rx.advice, regular, 10.5, CONTENT_W).forEach((l) => {
-      ensure(15);
+      ensure(18);
       text(l, MARGIN, y, { size: 10.5 });
-      y -= 14.5;
+      y -= 16;
     });
-    y -= 8;
+    y -= 14;
   }
 
   // ---------- Follow-up ----------
   if (rx.followUp.trim()) {
-    ensure(24);
-    text('FOLLOW-UP:', MARGIN, y - 8, { font: bold, size: 8, color: GRAY });
-    text(rx.followUp, MARGIN + 62, y - 8, { font: bold, size: 10.5 });
-    y -= 26;
+    const fl = wrap(rx.followUp, bold, 10.5, CONTENT_W);
+    ensure(fl.length * 16 + 34);
+    sectionHeading('Follow-up');
+    fl.forEach((l) => {
+      text(l, MARGIN, y, { font: bold, size: 10.5 });
+      y -= 16;
+    });
+    y -= 10;
   }
 
-  // ---------- Signature + footer (always on the last page) ----------
-  ensure(70);
-  const sigY = Math.min(y - 30, MARGIN + 50);
-  const sigW = 170;
-  page.drawLine({
-    start: { x: PAGE_W - MARGIN - sigW, y: sigY },
-    end: { x: PAGE_W - MARGIN, y: sigY },
-    thickness: 0.8,
-    color: GRAY,
+  // ---------- Signature (always on the last page) ----------
+  ensure(96);
+  const sigY = Math.min(y - 52, MARGIN + 76);
+  const sigW = 190;
+  hline(sigY, 0.8, INK, RIGHT - sigW, RIGHT);
+  textCentered(CLINIC_INFO.doctorName, RIGHT - sigW / 2, sigY - 14, { font: bold, size: 10.5 });
+  textCentered('Signature', RIGHT - sigW / 2, sigY - 26, { size: 8, color: GRAY });
+
+  text(`This prescription was issued by ${CLINIC_INFO.clinicName}.`, MARGIN, sigY + 2, { size: 8, color: GRAY });
+  text('Take medicines only as directed.', MARGIN, sigY - 9, { size: 8, color: GRAY });
+
+  // ---------- Footer on every page ----------
+  const pages = pdf.getPages();
+  pages.forEach((p, idx) => {
+    page = p;
+    hline(40, 0.6, RULE);
+    textCentered(`${CLINIC_INFO.clinicName}   |   ${CLINIC_INFO.address}`, PAGE_W / 2, 27, { size: 7.5, color: GRAY });
+    textCentered(`Phone: ${CLINIC_INFO.phone}`, PAGE_W / 2, 17, { size: 7.5, color: GRAY });
+    if (pages.length > 1) {
+      textRight(`Page ${idx + 1} of ${pages.length}`, RIGHT, 17, { size: 7.5, color: MID });
+    }
   });
-  const doc = clean(CLINIC_INFO.doctorName, regular);
-  text(doc, PAGE_W - MARGIN - sigW / 2 - regular.widthOfTextAtSize(doc, 10) / 2, sigY - 13, { size: 10 });
-  text(`This prescription was issued by ${CLINIC_INFO.clinicName}.`, MARGIN, sigY + 4, { size: 8, color: GRAY });
-  text('Take medicines only as directed.', MARGIN, sigY - 7, { size: 8, color: GRAY });
 
   return pdf.save();
 }

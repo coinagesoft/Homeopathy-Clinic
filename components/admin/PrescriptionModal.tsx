@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Appointment } from '@/lib/storage';
 import { toast } from '@/components/ui/Toast';
 import { Prescription, PrescriptionMedicine, emptyMedicine } from '@/lib/prescriptionTemplate';
@@ -186,8 +186,12 @@ export default function PrescriptionModal({
   const [advice, setAdvice] = useState('');
   const [followUp, setFollowUp] = useState('');
   const [sendTo, setSendTo] = useState('');
-  const [busy, setBusy] = useState<'save' | 'pdf' | 'send' | null>(null);
+  const [busy, setBusy] = useState<'save' | 'pdf' | 'send' | 'whatsapp' | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [waPanelOpen, setWaPanelOpen] = useState(false);
+  const [waInfo, setWaInfo] = useState<{ status: string; qr: string | null } | null>(null);
+  const [waPendingId, setWaPendingId] = useState<string | null>(null);
+  const sendWaRef = useRef<((id: string) => void) | null>(null);
 
   // Load existing prescription (if any) whenever a different appointment is opened
   useEffect(() => {
@@ -261,6 +265,40 @@ export default function PrescriptionModal({
     }
     return POTENCIES;
   };
+
+  // While the QR panel is open: poll the connection status, and send automatically once linked
+  useEffect(() => {
+    if (!waPanelOpen) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const res = await adminFetch(`/api/admin/whatsapp?t=${Date.now()}`, { cache: 'no-store' });
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        setWaInfo({ status: data.status, qr: data.qr });
+        if (data.status === 'connected') {
+          setWaPanelOpen(false);
+          toast.success('WhatsApp linked successfully.');
+          if (waPendingId) {
+            const id = waPendingId;
+            setWaPendingId(null);
+            sendWaRef.current?.(id);
+          }
+        }
+      } catch {
+        // keep polling
+      }
+    };
+
+    void poll();
+    const timer = setInterval(poll, 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waPanelOpen]);
 
   if (!appointment) return null;
 
@@ -354,6 +392,46 @@ export default function PrescriptionModal({
     } finally {
       setBusy(null);
     }
+  };
+
+  /** Sends the saved prescription PDF to the patient on WhatsApp (automatic, no manual attach). */
+  const sendWhatsAppFor = async (prescriptionId: string) => {
+    setBusy('whatsapp');
+    try {
+      const res = await adminFetch(`/api/admin/prescriptions/${prescriptionId}/whatsapp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: appointment.phone }),
+      });
+      const data = await res.json();
+      if (res.status === 409 && data.code === 'not_connected') {
+        // Clinic WhatsApp is not linked yet -> show the QR code panel
+        setWaPendingId(prescriptionId);
+        setWaInfo(null);
+        setWaPanelOpen(true);
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || 'Failed to send WhatsApp message');
+      toast.success(`Prescription PDF sent on WhatsApp to +${data.sentTo}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send WhatsApp message');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  sendWaRef.current = (id: string) => {
+    void sendWhatsAppFor(id);
+  };
+
+  const handleWhatsApp = async () => {
+    setBusy('whatsapp');
+    const saved = await save(true);
+    if (!saved) {
+      setBusy(null);
+      return;
+    }
+    await sendWhatsAppFor(saved.id);
   };
 
   const handleSend = async () => {
@@ -574,12 +652,58 @@ export default function PrescriptionModal({
             <button type="button" className="rx-btn rx-btn-outline" onClick={handleDownloadPdf} disabled={busy !== null || loading}>
               <IconFileText size={14} /> {busy === 'pdf' ? 'Preparing PDF…' : 'Print / Download PDF'}
             </button>
+            <button type="button" className="rx-btn rx-btn-outline" onClick={handleWhatsApp} disabled={busy !== null || loading}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M20.5 3.5A11.8 11.8 0 0 0 12 0 12 12 0 0 0 1.6 17.9L0 24l6.3-1.6A12 12 0 0 0 12 24a12 12 0 0 0 8.5-20.5zM12 21.9a9.9 9.9 0 0 1-5-1.4l-.4-.2-3.7 1 1-3.6-.2-.4A9.9 9.9 0 1 1 12 21.9zm5.4-7.4c-.3-.1-1.8-.9-2-1s-.5-.1-.7.1-.8 1-1 1.2-.4.2-.6.1a8 8 0 0 1-4-3.5c-.3-.5.3-.5.9-1.6a.6.6 0 0 0 0-.6l-.9-2.1c-.2-.6-.5-.5-.7-.5h-.6a1.1 1.1 0 0 0-.8.4 3.4 3.4 0 0 0-1 2.5 5.9 5.9 0 0 0 1.2 3.1 13.5 13.5 0 0 0 5.2 4.6c1.9.8 2.6.9 3.5.7a3 3 0 0 0 2-1.4 2.4 2.4 0 0 0 .2-1.4c-.1-.1-.3-.2-.6-.3z" />
+              </svg>{' '}
+              {busy === 'whatsapp' ? 'Sending…' : 'Send on WhatsApp'}
+            </button>
             <button type="button" className="rx-btn rx-btn-primary" onClick={handleSend} disabled={busy !== null || loading}>
               <IconMail size={14} /> {busy === 'send' ? 'Sending…' : 'Email PDF to Patient'}
             </button>
           </div>
         </div>
       </aside>
+
+      {waPanelOpen && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100000, background: 'rgba(15,23,42,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+          }}
+          onClick={() => { setWaPanelOpen(false); setWaPendingId(null); }}
+        >
+          <div
+            style={{
+              background: '#fff', borderRadius: 16, padding: 28, maxWidth: 380, width: '100%',
+              textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 6px', fontSize: 18 }}>Link clinic WhatsApp</h3>
+            <p style={{ margin: '0 0 14px', fontSize: 13, color: '#475569', lineHeight: 1.5 }}>
+              Open WhatsApp on the clinic phone &rarr; <strong>Settings &rarr; Linked devices &rarr; Link a device</strong> and scan this code. This is needed only once.
+            </p>
+            {waInfo?.qr ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={waInfo.qr} alt="WhatsApp QR code" width={260} height={260} style={{ margin: '0 auto' }} />
+            ) : (
+              <div style={{ padding: '60px 0', color: '#64748b', fontSize: 14 }}>Generating QR code…</div>
+            )}
+            <p style={{ margin: '12px 0 0', fontSize: 12, color: '#64748b' }}>
+              The prescription will be sent automatically after linking.
+            </p>
+            <button
+              type="button"
+              className="rx-btn rx-btn-ghost"
+              style={{ marginTop: 14 }}
+              onClick={() => { setWaPanelOpen(false); setWaPendingId(null); }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

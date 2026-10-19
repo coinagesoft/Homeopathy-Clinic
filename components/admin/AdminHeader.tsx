@@ -14,6 +14,7 @@ import {
   IconLogOut,
 } from './AdminIcons';
 import { AdminTabType, AdminUser } from './types';
+import WhatsAppStatus from './WhatsAppStatus';
 
 interface AdminHeaderProps {
   adminUser: AdminUser | null;
@@ -25,6 +26,7 @@ interface AdminHeaderProps {
   totalMedicines?: number;
   onQuickBook: () => void;
   onLogout: () => void;
+  adminFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 }
 
 export default function AdminHeader({
@@ -37,6 +39,7 @@ export default function AdminHeader({
   totalMedicines = 0,
   onQuickBook,
   onLogout,
+  adminFetch,
 }: AdminHeaderProps) {
   return (
     <>
@@ -51,6 +54,7 @@ export default function AdminHeader({
           </div>
 
           <div className="admin-topbar-right">
+            <WhatsAppStatus adminFetch={adminFetch} />
             <button type="button" className="btn-logout" onClick={onLogout}>
               <IconLogOut />
               <span>Logout</span>
@@ -126,4 +130,3 @@ export default function AdminHeader({
     </>
   );
 }
-
